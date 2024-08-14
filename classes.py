@@ -193,7 +193,7 @@ class Stock:
         return self.max_price, self.threshold_price
     
     def add_to_dashboard_json(self):
-        historical_data_dict = self.historical_data.tail(5).reset_index().rename(columns={'index': 'Date'}).to_dict(orient='records')
+        historical_data_dict = self.historical_data.tail(10).reset_index().rename(columns={'index': 'Date'}).to_dict(orient='records')
         keys_to_delete = ["Open", "Low", "Volume", "Dividends", "Stock Splits", "High"]
         for entry in historical_data_dict:
             entry['Date'] = entry['Date'].isoformat()
