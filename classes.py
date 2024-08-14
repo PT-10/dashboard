@@ -1,0 +1,244 @@
+import pandas as pd
+import json
+import os
+import yfinance as yf
+from datetime import datetime
+
+
+class StockDashboard:
+    def __init__(self, json_file_path, csv_file_path):
+        self.json_file_path = json_file_path
+        self.csv_file_path = csv_file_path
+        self.new_csv = False
+        self.purchase_info = self.load_purchase_info()
+        self.df = pd.read_csv(self.csv_file_path) if self.csv_file_path else None
+        self.meta_data = None
+        self.first_time = False
+        
+    def load_meta_data(self):
+        if not os.path.exists('meta_data.json'):
+            self.first_time = True
+            with open('meta_data.json', 'w') as f:
+                json.dump({}, f, indent=4)
+
+        else:
+            with open('meta_data.json', 'r') as f:
+                return json.load(f)
+            
+    def save_meta_data(self):
+        with open('meta_data.json', 'w') as f:
+            json.dump(self.meta_data, f, indent=4)
+
+    def save_purchase_info(self, purchase_info):
+        with open(self.json_file_path, 'w') as f:
+            json.dump(purchase_info, f, indent=4)
+
+    def ensure_json_file(self):
+        if not os.path.exists(self.json_file_path):
+            self.save_purchase_info({})
+
+    
+    def load_purchase_info(self):
+        self.ensure_json_file()
+        if os.path.exists(self.json_file_path):
+            with open(self.json_file_path, 'r') as f:
+                return json.load(f)
+        return {}
+
+    
+    def get_holdings_data(self):
+        return self.df
+
+    def get_purchase_info(self):
+        return self.purchase_info
+    
+    def process_new_csv(self):
+        #check if purchase_json exists
+        #if purchase_json exists then we need to update data else data needs to be added afresh
+        self.df = pd.read_csv(self.csv_file_path)
+        self.meta_data = self.load_meta_data()
+
+        if self.new_csv:
+            if self.first_time:
+                length = 0
+                self.meta_data = {"file0": {"File": self.csv_file_path,"Date added": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                   "Number of Stocks": len(self.df['Instrument']),
+                                   "All stocks added": False}}
+            else:
+                length = len(self.meta_data)
+
+            #use the key as file0 file1 and so on
+            key = f"file{length}"
+            #if it is a new csv, then add file_path and time of adding to the meta_data
+            self.meta_data[key] = {"File": self.csv_file_path,
+                                   "Date added": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                   "Number of Stocks": len(self.df['Instrument']),
+                                   "All stocks added": False}
+            #save the meta_data
+            self.save_meta_data()
+    
+
+
+class Stock:
+    def __init__(self, ticker_code, purchase_date, dashboard, threshold_percentage, requires_fetching=True):
+        self.ticker_code = ticker_code
+        self.suffix = self.get_suffix()
+        self.yfticker = yf.Ticker(f"{self.ticker_code}.{self.suffix}")
+        self.purchase_date = purchase_date
+        self.threshold_percentage = threshold_percentage
+        self.dashboard = dashboard
+        self.today = pd.to_datetime('today').date()
+        self.historical_data = pd.DataFrame()
+        self.today_data = None
+        self.avg_price = None
+        self.max_price = None
+        self.num_shares = None
+        self.threshold_price = None
+        self.investment_val = None
+        self.present_val = None
+        self.last_fetched_price = None
+        self.last_fetched_time = None
+        if requires_fetching:
+            self.update_data()
+            self.add_to_dashboard_json()
+        else:
+            self.load_existing_data()
+
+    def update_data(self):
+        self.historical_data = self.fetch_historical_data()
+        self.max_price = self.get_max_price()
+        self.avg_price = self.get_avg_price()
+        self.threshold_price = self.get_threshold_price()
+        self.num_shares = self.get_num_shares()
+        self.investment_val = self.get_investment()
+        self.present_val = self.get_present_value()
+        self.last_fetched_price = self.get_today_data()
+        self.last_fetched_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+
+    def load_existing_data(self):
+        if self.ticker_code in self.dashboard.purchase_info:
+            info = self.dashboard.purchase_info[self.ticker_code]
+            self.max_price = info['max_price']
+            self.avg_price = info['average_price']
+            self.historical_data = pd.DataFrame(info['historic_data'])
+            self.historical_data['Date'] = pd.to_datetime(self.historical_data['Date'])
+            self.historical_data.set_index('Date', inplace=True)
+            self.last_fetched_price = info.get('last_fetched_price')
+            self.last_fetched_time = info.get('last_fetched_time')
+
+    def get_suffix(self):
+        ticker = f"{self.ticker_code}.NS"
+        ticker_obj = yf.Ticker(ticker)
+        if ticker_obj.history(period='1d').empty:
+            ticker = f"{self.ticker_code}.BO"
+            ticker_obj = yf.Ticker(ticker)
+        if ticker_obj.history(period='1d').empty:
+            return None
+        return "NS" if ticker == f"{self.ticker_code}.NS" else "BO"
+
+    def fetch_historical_data(self):
+        if self.yfticker.history(period='1d').empty:
+            return pd.DataFrame()
+        purchase_date = pd.to_datetime(self.purchase_date).date()
+        if (self.today - purchase_date).days < 5:
+            start_date = self.today - pd.Timedelta(days=6)
+            historical_data = self.yfticker.history(start=start_date)
+        else:
+            historical_data = self.yfticker.history(start=purchase_date)
+        return historical_data
+
+    def get_today_data(self):
+        if self.yfticker.history(period='1d').empty:
+            return None
+        today_data = self.yfticker.history(period='1d')
+        return today_data['Close'].values[0] if not today_data.empty else None
+
+    def get_max_price(self):
+        if self.yfticker.history(period='1d').empty:
+            return None
+        purchase_date = pd.to_datetime(self.purchase_date).date()
+        historical_data = self.historical_data[self.historical_data.index.date >= purchase_date]
+        return historical_data['High'].max().round(2) if not historical_data.empty else None
+    
+    def get_threshold_price(self):
+        threshold_price = self.max_price * (1 - self.threshold_percentage * 0.01)
+        return round(threshold_price, 2)
+
+    def get_avg_price(self):
+        #get information from purchase_json
+        # return self.dashboard.purchase_info[self.ticker_code]['average_price']
+
+
+        row = self.dashboard.get_holdings_data().loc[self.dashboard.get_holdings_data()['Instrument'] == self.ticker_code]
+        return row['Avg. cost'].values[0] if not row.empty else None
+    
+    def get_num_shares(self):
+        # return self.dashboard.purchase_info[self.ticker_code]['num_shares']
+        row = self.dashboard.get_holdings_data().loc[self.dashboard.get_holdings_data()['Instrument'] == self.ticker_code]
+        return int(row['Qty.'].values[0]) if not row.empty else None
+    
+    def get_investment(self):
+        investment = round(self.avg_price * self.num_shares)
+        return int(investment)
+    
+    def get_present_value(self):
+        present_value = round(self.get_today_data() * self.num_shares)
+        return int(present_value)
+    
+    def update_max_price_from_current(self):
+        if self.last_fetched_price is not None:
+            self.max_price = max(self.max_price, self.last_fetched_price)
+            self.threshold_price = self.get_threshold_price()
+        return self.max_price, self.threshold_price
+    
+    def add_to_dashboard_json(self):
+        historical_data_dict = self.historical_data.tail(5).reset_index().rename(columns={'index': 'Date'}).to_dict(orient='records')
+        keys_to_delete = ["Open", "Low", "Volume", "Dividends", "Stock Splits", "High"]
+        for entry in historical_data_dict:
+            entry['Date'] = entry['Date'].isoformat()
+            for key in keys_to_delete:
+                del entry[key]
+
+        self.dashboard.purchase_info[self.ticker_code] = {
+            "suffix": self.suffix,
+            "purchase_date": self.purchase_date,
+            "num_shares": self.num_shares,
+            "max_price": self.max_price,
+            "threshold_percentage": self.threshold_percentage,
+            "threshold_price": self.threshold_price,
+            "average_price": self.avg_price,
+            "investment_value": self.investment_val,
+            "historic_data": historical_data_dict,
+            "last_fetched_price": self.last_fetched_price,
+            "last_fetched_time": self.last_fetched_time
+        }
+        
+        self.dashboard.save_purchase_info(self.dashboard.purchase_info)
+
+    def edit_threshold_percentage(self, new_threshold):
+        # Update the threshold values
+        self.threshold_percentage = new_threshold
+        self.threshold_price = self.get_threshold_price()
+        
+        # Check if the ticker_code exists in the purchase_info
+        if self.ticker_code in self.dashboard.purchase_info:
+            # Update only the changed fields
+            self.dashboard.purchase_info[self.ticker_code]['threshold_percentage'] = self.threshold_percentage
+            self.dashboard.purchase_info[self.ticker_code]['threshold_price'] = self.threshold_price
+            
+            # Optionally update the last modified timestamp or any other relevant fields
+            self.dashboard.purchase_info[self.ticker_code]['last_fetched_time'] = self.last_fetched_time
+            
+            # Save the updated information
+            self.dashboard.save_purchase_info(self.dashboard.purchase_info)
+        else:
+            print(f"Ticker code {self.ticker_code} not found in purchase_info.")
+
+    def delete_stock(self):
+        if self.ticker_code in self.dashboard.purchase_info:
+            del self.dashboard.purchase_info[self.ticker_code]
+            self.dashboard.save_purchase_info(self.dashboard.purchase_info)
+        else:
+            print(f"Ticker code {self.ticker_code} not found in purchase_info.")
+
