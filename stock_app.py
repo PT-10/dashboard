@@ -170,6 +170,7 @@ def main():
                         'Average Price': 'Average Price',
                         'Max Price': 'Max Price',
                         'Threshold%': 'Threshold%',
+                        'Threshold Price': 'Threshold Price',
                         'Current Price': 'Current Price',
                         '% CP of Max': '% CP of Max',
                         'Investment Value': 'Investment Value',
@@ -183,14 +184,14 @@ def main():
                     for col_name in column_visibility:
                         column_checks[col_name] = st.checkbox(f'{col_name}', value=col_name in st.session_state.visible_columns)
                     print(column_checks)
-                    st.session_state.visible_columns = ['Stock', 'Threshold Price']  # Always display these columns
+                    st.session_state.visible_columns = ['Stock']  # Always display these columns
                     st.session_state.visible_columns += [col for col, checked in column_checks.items() if checked]
 
                 # Filter DataFrame based on visible columns
                 visible_df = df_results[st.session_state.visible_columns]
                 
                 # Style DataFrame
-                styled_df = style_dataframe(visible_df)
+                styled_df = style_dataframe(visible_df, df_results)
 
                 # Display styled DataFrame with fixed column
                 table_placeholder.dataframe(styled_df, use_container_width=True, hide_index=False)

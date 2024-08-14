@@ -6,8 +6,8 @@ import plotly.graph_objs as go
 import pandas as pd
 
 
-def format_to_indian_date(date_str):
-    return datetime.strptime(date_str, '%Y-%m-%d').strftime('%d-%m-%Y')
+def format_to_indian_date(date):
+    return datetime.strptime(date, '%Y-%m-%d').strftime('%d-%m-%Y')
 
 def process_stock(stock):
     stock.update_data()
@@ -16,7 +16,7 @@ def process_stock(stock):
 
     return {
         "Stock": stock.ticker_code,
-        "Purchase Date": format_to_indian_date(str(stock.purchase_date)),
+        "Purchase Date": stock.purchase_date,
         "No. of Shares": stock.num_shares,
         "Average Price": stock.avg_price,
         "Max Price": stock.max_price,
@@ -52,16 +52,19 @@ def format_price(price, threshold_price):
 def format_gain_percentage(gain_percentage):
     return 'color: rgba(34, 188, 88);' if gain_percentage > 0 else 'color: red;'
 
-def style_dataframe(df):
+def style_dataframe(df, df_results):
     # Apply conditional formatting to the DataFrame
-    def style_current_price(value):
-        return format_price(float(value), df['Threshold Price'].mean())
+    def style_current_price(value, index):
+        # Check if both columns exist before accessing them
+        threshold_price = df_results['Threshold Price'][index]
+        return format_price(value, threshold_price)
 
     def style_gain_percentage(value):
         return format_gain_percentage(float(value))
 
     # Apply 2f precision formatting to relevant columns
     df_styled = df.style.format({
+        "Purchase Date": format_to_indian_date,
         "Average Price": "{:.2f}",
         "Max Price": "{:.2f}",
         "Threshold Price": "{:.2f}",
@@ -73,7 +76,7 @@ def style_dataframe(df):
     # Apply styles to DataFrame
     #check if the column is present in the dataframe
     if 'Current Price' in df.columns:
-        df_styled = df_styled.applymap(style_current_price, subset=['Current Price'])
+        df_styled = df_styled.applymap(lambda value: style_current_price(value, df[df['Current Price'] == value].index[0]), subset=['Current Price'])
     if 'Gain %' in df.columns:
         df_styled = df_styled.applymap(style_gain_percentage, subset=['Gain %'])
     if 'Gains' in df.columns:
