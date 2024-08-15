@@ -169,21 +169,30 @@ class Stock:
         #get information from purchase_json
         # return self.dashboard.purchase_info[self.ticker_code]['average_price']
 
-
-        row = self.dashboard.get_holdings_data().loc[self.dashboard.get_holdings_data()['Instrument'] == self.ticker_code]
-        return row['Avg. cost'].values[0] if not row.empty else None
+        if self.dashboard.new_csv:
+            row = self.dashboard.get_holdings_data().loc[self.dashboard.get_holdings_data()['Instrument'] == self.ticker_code]
+            return row['Avg. cost'].values[0] if not row.empty else None
+        
+        else:
+            return self.dashboard.purchase_info[self.ticker_code]['average_price']
     
     def get_num_shares(self):
         # return self.dashboard.purchase_info[self.ticker_code]['num_shares']
-        row = self.dashboard.get_holdings_data().loc[self.dashboard.get_holdings_data()['Instrument'] == self.ticker_code]
-        return int(row['Qty.'].values[0]) if not row.empty else None
-    
+        if self.dashboard.new_csv:
+            row = self.dashboard.get_holdings_data().loc[self.dashboard.get_holdings_data()['Instrument'] == self.ticker_code]
+            return int(row['Qty.'].values[0]) if not row.empty else None
+        else:
+            return self.dashboard.purchase_info[self.ticker_code]['num_shares']    
     def get_investment(self):
-        investment = round(self.avg_price * self.num_shares)
+        if self.dashboard.new_csv:
+            investment = round(self.avg_price * self.num_shares)
+        else:
+            investment = self.dashboard.purchase_info[self.ticker_code]['investment_value']
         return int(investment)
     
     def get_present_value(self):
-        present_value = round(self.get_today_data() * self.num_shares)
+        # present_value = round(self.get_today_data() * self.num_shares)
+        present_value = round(self.dashboard.purchase_info[self.ticker_code]['last_fetched_price'] * self.num_shares)
         return int(present_value)
     
     def update_max_price_from_current(self):

@@ -183,7 +183,7 @@ def main():
 
                     for col_name in column_visibility:
                         column_checks[col_name] = st.checkbox(f'{col_name}', value=col_name in st.session_state.visible_columns)
-                    print(column_checks)
+                    # print(column_checks)
                     st.session_state.visible_columns = ['Stock']  # Always display these columns
                     st.session_state.visible_columns += [col for col, checked in column_checks.items() if checked]
 

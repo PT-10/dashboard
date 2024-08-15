@@ -214,7 +214,7 @@ def plot_scatter_plot(dashboard):
         xaxis_title='Stock',
         yaxis_title='Gain %',
         template='plotly_dark',
-        height=500,
+        height=600,
         width=800
     )
 
