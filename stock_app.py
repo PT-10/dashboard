@@ -76,6 +76,8 @@ def main():
             'Threshold%', 'Threshold Price', 'Current Price', '% CP of Max' ,'Investment Value', 'Present Value',
             'Gains', 'Gain %'
         ]
+    if 'show_index' not in st.session_state:
+        st.session_state.show_index = True
     
     tabs = st.tabs(['Dashboard', 'Graphs', 'Scatter Plot'])
 
@@ -98,7 +100,7 @@ def main():
             }
 
             # Default value
-            default_refresh_rate = '20 minutes'
+            default_refresh_rate = '2 hours'
 
             # Selection box
             refresh_rate = st.selectbox('Select Refresh Rate', list(refresh_rate_options.keys()), index=list(refresh_rate_options.keys()).index(default_refresh_rate))
@@ -115,6 +117,7 @@ def main():
             stop_button = st.button('Stop')
 
         # Initialize placeholders for table and last updated text
+        summary_placeholder = st.empty()
         table_placeholder = st.empty()
         last_updated_placeholder = st.empty()
 
@@ -129,7 +132,7 @@ def main():
                 all_instruments = dashboard.get_holdings_data()['Instrument'].unique()
                 selected_instrument = st.sidebar.selectbox('Select Stock', all_instruments)
                 purchase_date = st.sidebar.date_input('Purchase Date', min_value=datetime(2000, 1, 1), max_value=datetime.today())
-                threshold_percentage = st.sidebar.slider('Threshold Percentage', min_value=0, max_value=100, value=5)
+                threshold_percentage = st.sidebar.slider('Threshold Percentage', min_value=0, max_value=50, value=10)
 
                 if st.sidebar.button('Add Stock'):
                     if selected_instrument:
@@ -162,9 +165,54 @@ def main():
 
                 df_results = pd.DataFrame(results)
 
+                # Update the flag based on user interaction
+                total_investment_value = df_results['Investment Value'].sum()
+                total_present_value = df_results['Present Value'].sum()
+                total_stocks = len(df_results)
+
+                # Create a container for the summary cards
+                with summary_placeholder.expander('Summary', expanded=True):
+                    col1, col2, col3 = st.columns(3)
+                    
+                    # Card 1: Total Investment Value
+                    with col1:
+                        st.markdown(
+                            f"""
+                            <div style="background-color:rgba(240, 240, 240, 0.05); border-radius:10px; padding:20px; text-align:center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
+                                <h6 style='margin-top:0;'>Total Investment Value</h6>
+                                <h3>₹{total_investment_value:,.2f}</h3>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                    
+                    # Card 2: Total Present Value
+                    with col2:
+                        st.markdown(
+                            f"""
+                            <div style="background-color:rgba(240, 240, 240, 0.05); border-radius:10px; padding:20px; text-align:center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
+                                <h6 style='margin-top:0;'>Total Present Value</h6>
+                                <h3>₹{total_present_value:,.2f}</h3>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                    
+                    # Card 3: Total Number of Stocks
+                    with col3:
+                        st.markdown(
+                            f"""
+                            <div style="background-color:rgba(240, 240, 240, 0.05); border-radius:10px; padding:20px; text-align:center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); margin-bottom:15px;">
+                                <h6 style='margin-top:0;'>Total Number of Stocks</h6>
+                                <h3>{total_stocks}</h3>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
                 # Create a collapsible menu for managing columns
                 with st.sidebar.expander('Manage Columns', expanded=False):
                     column_visibility = {
+                        
                         'Purchase Date': 'Purchase Date',
                         'No. of Shares': 'No. of Shares',
                         'Average Price': 'Average Price',
@@ -180,7 +228,7 @@ def main():
                     }
 
                     column_checks = {}
-
+                    st.session_state.show_index = st.checkbox('Show Index', value=st.session_state.show_index)
                     for col_name in column_visibility:
                         column_checks[col_name] = st.checkbox(f'{col_name}', value=col_name in st.session_state.visible_columns)
                     # print(column_checks)
@@ -193,8 +241,12 @@ def main():
                 # Style DataFrame
                 styled_df = style_dataframe(visible_df, df_results)
 
+                total_investment_value = df_results['Investment Value'].sum()
+                total_present_value = df_results['Present Value'].sum()
+                total_stocks = len(df_results)
+
                 # Display styled DataFrame with fixed column
-                table_placeholder.dataframe(styled_df, use_container_width=True, hide_index=False)
+                table_placeholder.dataframe(styled_df, use_container_width=True, hide_index = not st.session_state.show_index)
                 
                 # Update last updated time
                 last_updated_text = f"Last updated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
@@ -209,7 +261,7 @@ def main():
                 if available_instruments:
                     selected_instrument = st.sidebar.selectbox('Select Stock to Add', available_instruments)
                     purchase_date = st.sidebar.date_input('Purchase Date', min_value=datetime(2000, 1, 1), max_value=datetime.today())
-                    threshold_percentage = st.sidebar.slider('Threshold Percentage', min_value=0, max_value=100, value=5)
+                    threshold_percentage = st.sidebar.slider('Threshold Percentage', min_value=0, max_value=50, value=10)
 
                     if st.sidebar.button('Add Stock'):
                         if selected_instrument:
@@ -228,7 +280,7 @@ def main():
                 st.sidebar.header('Modify Stock')
 
                 # Dropdown to choose between editing or deleting
-                action = st.sidebar.selectbox('Choose Action', ['Edit Threshold Percentage', 'Delete Stock'])
+                action = st.sidebar.selectbox('Choose Action', ['Edit Threshold Percentage', 'Edit Purchase Date', 'Delete Stock'])
 
                 # Dropdown to select stock
                 selected_instrument = st.sidebar.selectbox('Select Stock', existing_instruments)
@@ -240,18 +292,34 @@ def main():
                     threshold_percentage = st.sidebar.slider(
                         'Update Threshold Percentage',
                         min_value=0,
-                        max_value=100,
-                        value=dashboard.purchase_info[selected_instrument]['threshold_percentage']
+                        max_value=50,
+                        # value=dashboard.purchase_info[selected_instrument]['threshold_percentage']
+                        value=10
                     )
                     
                     if st.sidebar.button('Edit Threshold Percentage'):
                         stock_object_update.edit_threshold_percentage(threshold_percentage)
                         st.sidebar.success(f'Threshold Percentage for {selected_instrument} updated successfully.')
 
+                elif action == 'Edit Purchase Date':
+                    # Date input for editing purchase date
+                    purchase_date = st.sidebar.date_input(
+                        'Update Purchase Date',
+                        value=datetime.strptime(dashboard.purchase_info[selected_instrument]['purchase_date'], '%Y-%m-%d')
+                    )
+                    
+                    if st.sidebar.button('Edit Purchase Date'):
+                        purchase_date_str = purchase_date.strftime('%Y-%m-%d')
+                        stock_object_update.edit_purchase_date(purchase_date_str)
+                        st.sidebar.success(f'Purchase Date for {selected_instrument} updated successfully.')
+
                 elif action == 'Delete Stock':
                     if st.sidebar.button('Delete Stock'):
                         stock_object_update.delete_stock()
                         st.sidebar.success(f'Stock {selected_instrument} deleted successfully.')
+
+                
+
             else:
                 st.write('No stocks added to the dashboard.')         
 

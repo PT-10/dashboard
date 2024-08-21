@@ -236,9 +236,6 @@ class Stock:
             self.dashboard.purchase_info[self.ticker_code]['threshold_percentage'] = self.threshold_percentage
             self.dashboard.purchase_info[self.ticker_code]['threshold_price'] = self.threshold_price
             
-            # Optionally update the last modified timestamp or any other relevant fields
-            self.dashboard.purchase_info[self.ticker_code]['last_fetched_time'] = self.last_fetched_time
-            
             # Save the updated information
             self.dashboard.save_purchase_info(self.dashboard.purchase_info)
         else:
@@ -247,6 +244,26 @@ class Stock:
     def delete_stock(self):
         if self.ticker_code in self.dashboard.purchase_info:
             del self.dashboard.purchase_info[self.ticker_code]
+            self.dashboard.save_purchase_info(self.dashboard.purchase_info)
+        else:
+            print(f"Ticker code {self.ticker_code} not found in purchase_info.")
+
+    def edit_purchase_date(self, new_date):
+        # Update the purchase date
+        self.purchase_date = new_date
+        self.historical_data = self.fetch_historical_data()
+        self.max_price = self.get_max_price()
+        self.threshold_price = self.get_threshold_price()
+        
+        # Check if the ticker_code exists in the purchase_info
+        if self.ticker_code in self.dashboard.purchase_info:
+            # Update only the changed fields
+            self.dashboard.purchase_info[self.ticker_code]['purchase_date'] = self.purchase_date
+            self.dashboard.purchase_info[self.ticker_code]['historic_data'] = self.historical_data.tail(10).reset_index().rename(columns={'index': 'Date'}).to_dict(orient='records')
+            self.dashboard.purchase_info[self.ticker_code]['max_price'] = self.max_price
+            self.dashboard.purchase_info[self.ticker_code]['threshold_price'] = self.threshold_price
+            
+            # Save the updated information
             self.dashboard.save_purchase_info(self.dashboard.purchase_info)
         else:
             print(f"Ticker code {self.ticker_code} not found in purchase_info.")
