@@ -4,6 +4,15 @@ import os
 import yfinance as yf
 from datetime import datetime
 
+def process_historic_data_for_json(historical_data, tail_length=10):
+    historical_data_dict = historical_data.tail(tail_length).reset_index().rename(columns={'index': 'Date'}).to_dict(orient='records')
+    keys_to_delete = ["Open", "Low", "Volume", "Dividends", "Stock Splits", "High"]
+    for entry in historical_data_dict:
+        entry['Date'] = entry['Date'].isoformat()
+        for key in keys_to_delete:
+            del entry[key]
+    return historical_data_dict
+
 
 class StockDashboard:
     def __init__(self, json_file_path, csv_file_path):
@@ -76,14 +85,39 @@ class StockDashboard:
                                    "All stocks added": False}
             #save the meta_data
             self.save_meta_data()
-    
+        self.update_purchase_info()
+        self.save_purchase_info(self.purchase_info)
 
+    def update_purchase_info(self):
+        new_stocks = set(self.df['Instrument'].unique())  
+        existing_stocks = set(self.purchase_info.keys())  
+        # stocks_to_add = new_stocks - existing_stocks
+        stocks_to_delete = [stock_code for stock_code in existing_stocks if stock_code not in new_stocks]
+        common_stocks = existing_stocks & new_stocks
+
+        # stocks_to_add = list(stocks_to_add)
+        stocks_to_delete = list(stocks_to_delete)
+        common_stocks = list(common_stocks)
+
+        for stock_code in stocks_to_delete:
+            del self.purchase_info[stock_code]
+
+        for stock_code in common_stocks:
+            #check if Qty corresponding to the stock has changed, if yes then update
+            if self.purchase_info[stock_code]['num_shares'] != self.df[self.df['Instrument'] == stock_code]['Qty.'].values[0]:
+                self.purchase_info[stock_code]['num_shares'] = int(self.df[self.df['Instrument'] == stock_code]['Qty.'].values[0])
+        
+            #check if average price corresponding to the stock has changed, if yes then update  
+            if self.purchase_info[stock_code]['average_price'] != self.df[self.df['Instrument'] == stock_code]['Avg. cost'].values[0]:
+                self.purchase_info[stock_code]['average_price'] = self.df[self.df['Instrument'] == stock_code]['Avg. cost'].values[0]
+
+        return self.purchase_info
 
 class Stock:
     def __init__(self, ticker_code, purchase_date, dashboard, threshold_percentage, requires_fetching=True):
         self.ticker_code = ticker_code
-        self.suffix = self.get_suffix()
-        self.yfticker = yf.Ticker(f"{self.ticker_code}.{self.suffix}")
+        self.suffix = None
+        self.yfticker = None
         self.purchase_date = purchase_date
         self.threshold_percentage = threshold_percentage
         self.dashboard = dashboard
@@ -99,12 +133,15 @@ class Stock:
         self.last_fetched_price = None
         self.last_fetched_time = None
         if requires_fetching:
+            print(self.ticker_code, self.suffix)
             self.update_data()
-            self.add_to_dashboard_json()
+            # self.add_to_dashboard_json()
         else:
             self.load_existing_data()
 
     def update_data(self):
+        self.suffix = self.get_suffix() if self.suffix is None else self.suffix
+        self.yfticker = yf.Ticker(f"{self.ticker_code}.{self.suffix}")
         self.historical_data = self.fetch_historical_data()
         self.max_price = self.get_max_price()
         self.avg_price = self.get_avg_price()
@@ -119,13 +156,19 @@ class Stock:
     def load_existing_data(self):
         if self.ticker_code in self.dashboard.purchase_info:
             info = self.dashboard.purchase_info[self.ticker_code]
+            self.suffix = info['suffix']
+            self.yfticker = yf.Ticker(f"{self.ticker_code}.{self.suffix}")
             self.max_price = info['max_price']
             self.avg_price = info['average_price']
             self.historical_data = pd.DataFrame(info['historic_data'])
             self.historical_data['Date'] = pd.to_datetime(self.historical_data['Date'])
             self.historical_data.set_index('Date', inplace=True)
-            self.last_fetched_price = info.get('last_fetched_price')
-            self.last_fetched_time = info.get('last_fetched_time')
+            self.threshold_price = info['threshold_price']
+            self.num_shares = self.get_num_shares()
+            self.investment_val = self.get_investment()
+            self.last_fetched_price = info['last_fetched_price']
+            self.last_fetched_time = info['last_fetched_time']
+            self.present_val = self.num_shares * self.last_fetched_price
 
     def get_suffix(self):
         ticker = f"{self.ticker_code}.NS"
@@ -142,7 +185,7 @@ class Stock:
             return pd.DataFrame()
         purchase_date = pd.to_datetime(self.purchase_date).date()
         if (self.today - purchase_date).days < 5:
-            start_date = self.today - pd.Timedelta(days=6)
+            start_date = self.today - pd.Timedelta(days=15)
             historical_data = self.yfticker.history(start=start_date)
         else:
             historical_data = self.yfticker.history(start=purchase_date)
@@ -167,32 +210,46 @@ class Stock:
 
     def get_avg_price(self):
         #get information from purchase_json
-        # return self.dashboard.purchase_info[self.ticker_code]['average_price']
-
-        if self.dashboard.new_csv:
+        if self.ticker_code in self.dashboard.purchase_info:
+        
+            if self.dashboard.new_csv:
+                row = self.dashboard.get_holdings_data().loc[self.dashboard.get_holdings_data()['Instrument'] == self.ticker_code]
+                return row['Avg. cost'].values[0] if not row.empty else None
+            
+            else:
+                return self.dashboard.purchase_info[self.ticker_code]['average_price']
+        else:
             row = self.dashboard.get_holdings_data().loc[self.dashboard.get_holdings_data()['Instrument'] == self.ticker_code]
             return row['Avg. cost'].values[0] if not row.empty else None
-        
-        else:
-            return self.dashboard.purchase_info[self.ticker_code]['average_price']
-    
+            
+
     def get_num_shares(self):
-        # return self.dashboard.purchase_info[self.ticker_code]['num_shares']
-        if self.dashboard.new_csv:
+        if self.ticker_code in self.dashboard.purchase_info:
+            if self.dashboard.new_csv:
+                row = self.dashboard.get_holdings_data().loc[self.dashboard.get_holdings_data()['Instrument'] == self.ticker_code]
+                return int(row['Qty.'].values[0]) if not row.empty else None
+            else:
+                return self.dashboard.purchase_info[self.ticker_code]['num_shares']    
+
+        else:
             row = self.dashboard.get_holdings_data().loc[self.dashboard.get_holdings_data()['Instrument'] == self.ticker_code]
             return int(row['Qty.'].values[0]) if not row.empty else None
-        else:
-            return self.dashboard.purchase_info[self.ticker_code]['num_shares']    
+
     def get_investment(self):
-        if self.dashboard.new_csv:
-            investment = round(self.avg_price * self.num_shares)
+        if self.ticker_code in self.dashboard.purchase_info:
+            if self.dashboard.new_csv:
+                investment = round(self.avg_price * self.num_shares)
+            else:
+                investment = self.dashboard.purchase_info[self.ticker_code]['investment_value']
+            return int(investment)
+
         else:
-            investment = self.dashboard.purchase_info[self.ticker_code]['investment_value']
-        return int(investment)
-    
+            investment = round(self.avg_price * self.num_shares)
+            return int(investment)
+
     def get_present_value(self):
-        # present_value = round(self.get_today_data() * self.num_shares)
-        present_value = round(self.dashboard.purchase_info[self.ticker_code]['last_fetched_price'] * self.num_shares)
+        present_value = round(self.get_today_data() * self.num_shares)
+        # present_value = round(self.dashboard.purchase_info[self.ticker_code]['last_fetched_price'] * self.num_shares)
         return int(present_value)
     
     def update_max_price_from_current(self):
@@ -201,13 +258,20 @@ class Stock:
             self.threshold_price = self.get_threshold_price()
         return self.max_price, self.threshold_price
     
-    def add_to_dashboard_json(self):
-        historical_data_dict = self.historical_data.tail(10).reset_index().rename(columns={'index': 'Date'}).to_dict(orient='records')
+    def historical_data_rolling_window_update(self):
+        today_data_dict = self.yfticker.history(period='1d')
         keys_to_delete = ["Open", "Low", "Volume", "Dividends", "Stock Splits", "High"]
-        for entry in historical_data_dict:
+        for entry in today_data_dict:
             entry['Date'] = entry['Date'].isoformat()
             for key in keys_to_delete:
                 del entry[key]
+        historical_data_json = self.dashboard.purchase_info[self.ticker_code]['historic_data']
+        historical_data_json = historical_data_json[1:].append(today_data_dict, ignore_index=True)
+
+    
+    
+    def add_to_dashboard_json(self):
+        historical_data_dict = process_historic_data_for_json(self.historical_data, tail_length=10)
 
         self.dashboard.purchase_info[self.ticker_code] = {
             "suffix": self.suffix,
@@ -259,7 +323,8 @@ class Stock:
         if self.ticker_code in self.dashboard.purchase_info:
             # Update only the changed fields
             self.dashboard.purchase_info[self.ticker_code]['purchase_date'] = self.purchase_date
-            self.dashboard.purchase_info[self.ticker_code]['historic_data'] = self.historical_data.tail(10).reset_index().rename(columns={'index': 'Date'}).to_dict(orient='records')
+            self.dashboard.purchase_info[self.ticker_code]['historic_data'] = process_historic_data_for_json(self.historical_data, tail_length=10)
+            
             self.dashboard.purchase_info[self.ticker_code]['max_price'] = self.max_price
             self.dashboard.purchase_info[self.ticker_code]['threshold_price'] = self.threshold_price
             

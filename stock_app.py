@@ -52,7 +52,7 @@ def main():
         dashboard.csv_file_path = st.session_state.file_path
         dashboard.new_csv = True
         dashboard.process_new_csv()
-        process_new_csv_json(dashboard)
+        # process_new_csv_json(dashboard)
 
         # Display processing success message
         st.success("Data processed successfully")
@@ -267,6 +267,7 @@ def main():
                         if selected_instrument:
                             purchase_date_str = purchase_date.strftime('%Y-%m-%d')  # Convert to yyyy-mm-dd format
                             stock = Stock(selected_instrument, purchase_date_str, dashboard, threshold_percentage, requires_fetching=True)
+                            # stock_objects[ticker_code] = stock
                             stock.add_to_dashboard_json()
                             st.sidebar.success(f'Stock {selected_instrument} added successfully.')
                         else:
@@ -318,7 +319,7 @@ def main():
                         stock_object_update.delete_stock()
                         st.sidebar.success(f'Stock {selected_instrument} deleted successfully.')
 
-                
+                print(stock_objects)
 
             else:
                 st.write('No stocks added to the dashboard.')         
@@ -344,8 +345,8 @@ def main():
                                     continue
                                 purchase_date = dashboard.purchase_info[ticker_code]['purchase_date']
                                 threshold_percentage = dashboard.purchase_info[ticker_code]['threshold_percentage']
-                                stock_objects[ticker_code] = Stock(ticker_code, purchase_date, dashboard, threshold_percentage, requires_fetching=False)
-                                futures.append(executor.submit(process_stock, stock_objects[ticker_code]))
+                                stock_objects[ticker_code] = Stock(ticker_code, purchase_date, dashboard, threshold_percentage, requires_fetching=True)
+                                futures.append(executor.submit(process_fetched_stock_data, stock_objects[ticker_code]))
 
                         results = []
                         for future in concurrent.futures.as_completed(futures):
@@ -358,7 +359,7 @@ def main():
                         visible_df = df_results[st.session_state.visible_columns]
                         
                         # Style DataFrame
-                        styled_df = style_dataframe(visible_df)
+                        styled_df = style_dataframe(visible_df, df_results)
                         
                         # Update the existing table placeholder
                         table_placeholder.dataframe(styled_df, use_container_width=True, hide_index=True)

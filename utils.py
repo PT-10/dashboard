@@ -10,7 +10,28 @@ def format_to_indian_date(date):
     return datetime.strptime(date, '%Y-%m-%d').strftime('%d-%m-%Y')
 
 def process_stock(stock):
-    stock.update_data()
+    # stock.update_data()
+    # stock.max_price, stock.threshold_price = stock.update_max_price_from_current()
+    # stock.add_to_dashboard_json()
+
+    return {
+        "Stock": stock.ticker_code,
+        "Purchase Date": stock.purchase_date,
+        "No. of Shares": stock.num_shares,
+        "Average Price": stock.avg_price,
+        "Max Price": stock.max_price,
+        "Threshold%": stock.threshold_percentage,
+        "Threshold Price": stock.threshold_price,
+        "Current Price": stock.last_fetched_price,
+        "% CP of Max": ((stock.last_fetched_price - stock.max_price) / stock.max_price) * 100,
+        "Investment Value": stock.investment_val,
+        "Present Value": stock.present_val,
+        "Gains": int(stock.present_val - stock.investment_val),
+        "Gain %": ((stock.present_val - stock.investment_val) / stock.investment_val) * 100
+    }
+
+def process_fetched_stock_data(stock):
+    # stock.update_data()
     stock.max_price, stock.threshold_price = stock.update_max_price_from_current()
     stock.add_to_dashboard_json()
 
