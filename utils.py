@@ -4,7 +4,26 @@ from dateutil import tz
 import pytz
 import plotly.graph_objs as go
 import pandas as pd
+import logging
+import json
+import logging
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+def load_wishlist(json_file_path):
+    if not os.path.exists(json_file_path):
+            with open(json_file_path, 'w') as f:
+                json.dump({}, f, indent=4)
+
+    if os.path.exists(json_file_path):
+        with open(json_file_path, 'r') as f:
+            return json.load(f)
+
+
+def save_wishlist(wishlist, json_file_path):
+    with open(json_file_path, 'w') as f:
+        json.dump(wishlist, f, indent=4)
 
 def format_to_indian_date(date):
     return datetime.strptime(date, '%Y-%m-%d').strftime('%d-%m-%Y')
@@ -27,14 +46,18 @@ def process_stock(stock):
         "Investment Value": stock.investment_val,
         "Present Value": stock.present_val,
         "Gains": int(stock.present_val - stock.investment_val),
-        "Gain %": ((stock.present_val - stock.investment_val) / stock.investment_val) * 100
+        "Gain %": ((stock.present_val - stock.investment_val) / stock.investment_val) * 100,
     }
 
 def process_fetched_stock_data(stock):
-    # stock.update_data()
+    # logging.info(f"Processing data for {stock.ticker_code}.")
+    # logging.info(f"Initializing {stock.ticker_code} for fetching.")
+            
+    stock.update_data()
     stock.max_price, stock.threshold_price = stock.update_max_price_from_current()
     stock.add_to_dashboard_json()
-
+    logging.info(f"Data fetched for {stock.ticker_code}: {stock.last_fetched_price}")
+    
     return {
         "Stock": stock.ticker_code,
         "Purchase Date": stock.purchase_date,
@@ -105,7 +128,15 @@ def style_dataframe(df, df_results):
 
     return df_styled
 
-
+def set_status(last_fetched_price, buy_threshold, sell_threshold):
+        # print(f"last_fetched_price: {last_fetched_price}, buy_threshold: {buy_threshold}, sell_threshold: {sell_threshold}")
+        if buy_threshold:
+            if float(last_fetched_price) <= float(buy_threshold):
+                return "BUY" 
+        if sell_threshold:
+            if float(last_fetched_price) >= float(sell_threshold):
+                return "SELL"
+        return ""
 
 def plot_data(historical_data, today_data, stock_name):
     fig = go.Figure()

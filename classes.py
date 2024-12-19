@@ -3,6 +3,7 @@ import json
 import os
 import yfinance as yf
 from datetime import datetime
+import logging
 
 def process_historic_data_for_json(historical_data, tail_length=10):
     historical_data_dict = historical_data.tail(tail_length).reset_index().rename(columns={'index': 'Date'}).to_dict(orient='records')
@@ -13,6 +14,7 @@ def process_historic_data_for_json(historical_data, tail_length=10):
             del entry[key]
     return historical_data_dict
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 class StockDashboard:
     def __init__(self, json_file_path, csv_file_path):
@@ -45,8 +47,6 @@ class StockDashboard:
     def ensure_json_file(self):
         if not os.path.exists(self.json_file_path):
             self.save_purchase_info({})
-
-    
     def load_purchase_info(self):
         self.ensure_json_file()
         if os.path.exists(self.json_file_path):
@@ -111,7 +111,9 @@ class StockDashboard:
             if self.purchase_info[stock_code]['average_price'] != self.df[self.df['Instrument'] == stock_code]['Avg. cost'].values[0]:
                 self.purchase_info[stock_code]['average_price'] = self.df[self.df['Instrument'] == stock_code]['Avg. cost'].values[0]
 
-        return self.purchase_info
+        return self.purchase_info   
+
+
 
 class Stock:
     def __init__(self, ticker_code, purchase_date, dashboard, threshold_percentage, requires_fetching=True):
@@ -133,7 +135,8 @@ class Stock:
         self.last_fetched_price = None
         self.last_fetched_time = None
         if requires_fetching:
-            print(self.ticker_code, self.suffix)
+            # print(self.ticker_code, self.suffix)
+            # logging.info(f"Initializing {self.ticker_code} for fetching.")
             self.update_data()
             # self.add_to_dashboard_json()
         else:
@@ -266,10 +269,7 @@ class Stock:
             for key in keys_to_delete:
                 del entry[key]
         historical_data_json = self.dashboard.purchase_info[self.ticker_code]['historic_data']
-        historical_data_json = historical_data_json[1:].append(today_data_dict, ignore_index=True)
-
-    
-    
+        historical_data_json = historical_data_json[1:].append(today_data_dict, ignore_index=True)   
     def add_to_dashboard_json(self):
         historical_data_dict = process_historic_data_for_json(self.historical_data, tail_length=10)
 
@@ -332,4 +332,23 @@ class Stock:
             self.dashboard.save_purchase_info(self.dashboard.purchase_info)
         else:
             print(f"Ticker code {self.ticker_code} not found in purchase_info.")
+
+class Wishlist_Stock():
+    def __init__(self, ticker_code, suffix):
+        self.ticker_code = ticker_code
+        self.suffix = suffix
+        self.yfticker = yf.Ticker(f"{self.ticker_code}.{self.suffix}")
+        self.buy_threshold = None
+        self.sell_threshold = None
+        # self.today = pd.to_datetime('today').date()
+        self.last_fetched_price = self.get_today_data()
+        self.last_fetched_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # self.buy_price = self.get_buy_price()
+        # self.sell_price = self.get_sell_price()
+
+    def get_today_data(self):
+        if self.yfticker.history(period='1d').empty:
+            return None
+        today_data = self.yfticker.history(period='1d')
+        return today_data['Close'].values[0] if not today_data.empty else None
 

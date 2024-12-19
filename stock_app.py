@@ -6,8 +6,7 @@ import time
 from datetime import datetime
 from utils import *
 from classes import *
-
-
+from wishlist import display_wishlist
 
 def main():
     st.title('Stock Dashboard')
@@ -61,7 +60,8 @@ def main():
         st.session_state.uploaded = None
         st.session_state.file_path = None
 
-    
+    # Check if purchase_info.json is newly created
+    is_new_file = not os.path.exists(json_file_path) or not bool(dashboard.get_purchase_info())
 
     # Initialize session state variables
     if 'fetching' not in st.session_state:
@@ -74,12 +74,19 @@ def main():
         st.session_state.visible_columns = [
             'Stock', 'Purchase Date', 'No. of Shares', 'Average Price', 'Max Price',
             'Threshold%', 'Threshold Price', 'Current Price', '% CP of Max' ,'Investment Value', 'Present Value',
-            'Gains', 'Gain %'
+            'Gains', 'Gain %', 'BUY', 'SELL', 'STATUS'
         ]
     if 'show_index' not in st.session_state:
         st.session_state.show_index = True
+
+    if 'stock_objects' not in st.session_state:
+        if is_new_file:
+            st.session_state.stock_objects = {}
+        else:
+            purchase_info = dashboard.get_purchase_info()
+            st.session_state.stock_objects = {ticker_code: Stock(ticker_code, info['purchase_date'], dashboard, info['threshold_percentage'], requires_fetching=False) for ticker_code, info in purchase_info.items()}
     
-    tabs = st.tabs(['Dashboard', 'Graphs', 'Scatter Plot'])
+    tabs = st.tabs(['Dashboard', 'Graphs', 'Scatter Plot', 'Wishlist'])
 
     with tabs[0]:
         # Layout for refresh rate dropdown and buttons
@@ -114,16 +121,12 @@ def main():
 
         with col3:
             # Button to stop fetching data
-            stop_button = st.button('Stop')
+            stop_button = st.button('Stop')   
 
         # Initialize placeholders for table and last updated text
         summary_placeholder = st.empty()
         table_placeholder = st.empty()
         last_updated_placeholder = st.empty()
-
-        # Check if purchase_info.json is newly created
-        is_new_file = not os.path.exists(json_file_path) or not bool(dashboard.get_purchase_info())
-
         if is_new_file:
             st.write('Welcome! You need to add stocks to the dashboard.')
             if dashboard.get_holdings_data() is not None:
@@ -139,6 +142,9 @@ def main():
                         purchase_date_str = purchase_date.strftime('%Y-%m-%d')  # Convert to yyyy-mm-dd format
                         stock = Stock(selected_instrument, purchase_date_str, dashboard, threshold_percentage, requires_fetching=True)
                         stock.add_to_dashboard_json()
+                        #Add to stock_objects
+                        st.session_state.stock_objects[selected_instrument] = stock
+
                         if len(dashboard.purchase_info) == len(all_instruments):
                             st.sidebar.success('All stocks added successfully.')
                         st.sidebar.success(f'Stock {selected_instrument} added successfully.')
@@ -149,14 +155,14 @@ def main():
             # Display existing stock data
             purchase_info = dashboard.get_purchase_info()
             if purchase_info:
-                stock_objects = {}
+                # stock_objects = {}
                 futures = []
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     for ticker_code, info in purchase_info.items():
                         purchase_date = info['purchase_date']
                         threshold_percentage = info['threshold_percentage']
-                        stock_objects[ticker_code] = Stock(ticker_code, purchase_date, dashboard, threshold_percentage, requires_fetching=False)
-                        futures.append(executor.submit(process_stock, stock_objects[ticker_code]))
+                        st.session_state.stock_objects[ticker_code] = Stock(ticker_code, purchase_date, dashboard, threshold_percentage, requires_fetching=False)
+                        futures.append(executor.submit(process_stock, st.session_state.stock_objects[ticker_code]))
 
                 results = []
                 for future in concurrent.futures.as_completed(futures):
@@ -237,9 +243,8 @@ def main():
 
                 # Filter DataFrame based on visible columns
                 visible_df = df_results[st.session_state.visible_columns]
-                
                 # Style DataFrame
-                styled_df = style_dataframe(visible_df, df_results)
+                styled_df = style_dataframe(visible_df, df_results) 
 
                 total_investment_value = df_results['Investment Value'].sum()
                 total_present_value = df_results['Present Value'].sum()
@@ -267,7 +272,7 @@ def main():
                         if selected_instrument:
                             purchase_date_str = purchase_date.strftime('%Y-%m-%d')  # Convert to yyyy-mm-dd format
                             stock = Stock(selected_instrument, purchase_date_str, dashboard, threshold_percentage, requires_fetching=True)
-                            # stock_objects[ticker_code] = stock
+                            st.session_state.stock_objects[ticker_code] = stock
                             stock.add_to_dashboard_json()
                             st.sidebar.success(f'Stock {selected_instrument} added successfully.')
                         else:
@@ -286,7 +291,7 @@ def main():
                 # Dropdown to select stock
                 selected_instrument = st.sidebar.selectbox('Select Stock', existing_instruments)
 
-                stock_object_update = stock_objects[selected_instrument]
+                stock_object_update = st.session_state.stock_objects[selected_instrument]
 
                 if action == 'Edit Threshold Percentage':
                     # Slider for editing threshold percentage
@@ -319,62 +324,71 @@ def main():
                         stock_object_update.delete_stock()
                         st.sidebar.success(f'Stock {selected_instrument} deleted successfully.')
 
-                print(stock_objects)
+                # print(stock_objects)
 
             else:
                 st.write('No stocks added to the dashboard.')         
 
         if start_button:
+            
             st.session_state.fetching = True
-            st.session_state.stop_fetching = False
+            # st.session_state.stop_fetching = False
             st.write(f"Fetching data every {refresh_rate}...")
+            print("Fetch button has been pressed", st.session_state.fetching)
 
-            def fetch_data():
-                while st.session_state.fetching:
-                    if st.session_state.stop_fetching:
-                        st.session_state.fetching = False
-                        break
+            # def fetch_data():
+            while st.session_state.fetching:
+                print("Fetching session state", st.session_state.fetching)
+                # if st.session_state.stop_fetching:
+                #     st.session_state.fetching = False
+                #     break
+                
+                with st.spinner('Fetching data...'):
+                    futures = []
+
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        for ticker_code in dashboard.df['Instrument']:
+                            if ticker_code not in dashboard.purchase_info:
+                                continue
+                            purchase_date = dashboard.purchase_info[ticker_code]['purchase_date']
+                            threshold_percentage = dashboard.purchase_info[ticker_code]['threshold_percentage']
+                            # st.session_state.stock_objects[ticker_code] = Stock(ticker_code, purchase_date, dashboard, threshold_percentage, requires_fetching=True)
+                            futures.append(executor.submit(process_fetched_stock_data, st.session_state.stock_objects[ticker_code]))
+
+                    results = []
+                    for future in concurrent.futures.as_completed(futures):
+                        result = future.result()
+                        results.append(result)
+
+                    df_results = pd.DataFrame(results)
+                    # print(df_results.columns)
                     
-                    with st.spinner('Fetching data...'):
-                        stock_objects = {}
-                        futures = []
+                    # Filter DataFrame based on visible columns
+                    visible_df = df_results[st.session_state.visible_columns]
+                    
+                    # Style DataFrame
+                    styled_df = style_dataframe(visible_df, df_results)
 
-                        with concurrent.futures.ThreadPoolExecutor() as executor:
-                            for ticker_code in dashboard.df['Instrument']:
-                                if ticker_code not in dashboard.purchase_info:
-                                    continue
-                                purchase_date = dashboard.purchase_info[ticker_code]['purchase_date']
-                                threshold_percentage = dashboard.purchase_info[ticker_code]['threshold_percentage']
-                                stock_objects[ticker_code] = Stock(ticker_code, purchase_date, dashboard, threshold_percentage, requires_fetching=True)
-                                futures.append(executor.submit(process_fetched_stock_data, stock_objects[ticker_code]))
-
-                        results = []
-                        for future in concurrent.futures.as_completed(futures):
-                            result = future.result()
-                            results.append(result)
-
-                        df_results = pd.DataFrame(results)
-                        
-                        # Filter DataFrame based on visible columns
-                        visible_df = df_results[st.session_state.visible_columns]
-                        
-                        # Style DataFrame
-                        styled_df = style_dataframe(visible_df, df_results)
-                        
-                        # Update the existing table placeholder
-                        table_placeholder.dataframe(styled_df, use_container_width=True, hide_index=True)
-                        
-                        # Update last updated time
-                        last_updated_text = f"Last updated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                        last_updated_placeholder.write(last_updated_text)
-                        
-                    time.sleep(refresh_interval)
+                    editable_columns = []
+                    disabled_columns = [col for col in styled_df.columns if col not in editable_columns]
+                    
+                    # Update the existing table placeholder
+                    table_placeholder.data_editor(styled_df, use_container_width=True, hide_index = not st.session_state.show_index, disabled=disabled_columns)
+                    
+                    # Update last updated time
+                    last_updated_text = f"Last updated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    last_updated_placeholder.write(last_updated_text)
+                    
+                time.sleep(refresh_interval)
             
             # Start fetching data
-            fetch_data()
+            # fetch_data()
 
         if stop_button:
-            st.session_state.stop_fetching = True
+            st.session_state.fetching = False
+            print("Stop button has been pressed", st.session_state.fetching)
+            
+            # st.session_state.stop_fetching = True
     
     with tabs[1]:
         
@@ -428,6 +442,10 @@ def main():
         figure = plot_scatter_plot(dashboard)
         st.plotly_chart(figure, use_container_width=True)
 
+    with tabs[3]:
+        display_wishlist()
+
 if __name__ == "__main__":
     st.set_page_config(page_title="Stock Dashboard", layout="wide")
+
     main()
