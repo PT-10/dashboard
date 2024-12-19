@@ -124,6 +124,9 @@ class Stock:
         self.present_val = None
         self.last_fetched_price = None
         self.last_fetched_time = None
+        self.buy_threshold = None
+        self.sell_threshold = None
+        self.status = None
         if requires_fetching:
             # print(self.ticker_code, self.suffix)
             # logging.info(f"Initializing {self.ticker_code} for fetching.")
@@ -144,7 +147,6 @@ class Stock:
         self.present_val = self.get_present_value()
         self.last_fetched_price = self.get_today_data()
         self.last_fetched_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
 
     def load_existing_data(self):
         if self.ticker_code in self.dashboard.purchase_info:
@@ -162,6 +164,9 @@ class Stock:
             self.last_fetched_price = info['last_fetched_price']
             self.last_fetched_time = info['last_fetched_time']
             self.present_val = self.num_shares * self.last_fetched_price
+            self.buy_threshold = info['BUY']
+            self.sell_threshold = info['SELL']
+            self.status = info['STATUS']
 
     def get_suffix(self):
         ticker = f"{self.ticker_code}.NS"
@@ -287,7 +292,10 @@ class Stock:
             "investment_value": self.investment_val,
             "historic_data": historical_data_dict,
             "last_fetched_price": self.last_fetched_price,
-            "last_fetched_time": self.last_fetched_time
+            "last_fetched_time": self.last_fetched_time,
+            "BUY": self.buy_threshold,
+            "SELL": self.sell_threshold,
+            "STATUS": self.status
         }
         
         self.dashboard.save_purchase_info(self.dashboard.purchase_info)

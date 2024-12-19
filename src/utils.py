@@ -47,14 +47,18 @@ def process_stock(stock):
         "Present Value": stock.present_val,
         "Gains": int(stock.present_val - stock.investment_val),
         "Gain %": ((stock.present_val - stock.investment_val) / stock.investment_val) * 100,
+        'BUY': stock.buy_threshold,
+        'SELL': stock.sell_threshold,
+        'STATUS': stock.status
     }
 
 def process_fetched_stock_data(stock):
     # logging.info(f"Processing data for {stock.ticker_code}.")
     # logging.info(f"Initializing {stock.ticker_code} for fetching.")
-            
+    prev_status = stock.status
     stock.update_data()
     stock.max_price, stock.threshold_price = stock.update_max_price_from_current()
+    stock.status = set_status(stock.last_fetched_price, stock.buy_threshold, stock.sell_threshold)
     stock.add_to_dashboard_json()
     logging.info(f"Data fetched for {stock.ticker_code}: {stock.last_fetched_price}")
     
@@ -71,7 +75,11 @@ def process_fetched_stock_data(stock):
         "Investment Value": stock.investment_val,
         "Present Value": stock.present_val,
         "Gains": int(stock.present_val - stock.investment_val),
-        "Gain %": ((stock.present_val - stock.investment_val) / stock.investment_val) * 100
+        "Gain %": ((stock.present_val - stock.investment_val) / stock.investment_val) * 100,
+        'BUY': stock.buy_threshold,
+        'SELL': stock.sell_threshold,
+        'STATUS': stock.status,
+        'PREV STATUS': prev_status
     }
 
 def convert_to_iso_format(date_str, timezone_str='Asia/Kolkata'):
@@ -271,3 +279,5 @@ def plot_scatter_plot(dashboard):
     )
 
     return fig
+
+

@@ -18,8 +18,8 @@ def display_wishlist():
             st.session_state.wishlist_stock_objects = {ticker: Wishlist_Stock(ticker, st.session_state.wishlist[ticker]['exchange']) for ticker in st.session_state.wishlist}
         else:
             st.session_state.wishlist_stock_objects = {}
-    if 'edit_mode' not in st.session_state:
-        st.session_state.edit_mode = False
+    if 'wishlist_edit_mode' not in st.session_state:
+        st.session_state.wishlist_edit_mode = False
 
 
 
@@ -104,18 +104,18 @@ def display_wishlist():
         button_col1, button_col2, button_col3, button_col4 = st.columns([2, 2, 0.5, 0.5])
 
         # Add a delete column with icons
-        if st.session_state.edit_mode:
+        if st.session_state.wishlist_edit_mode:
             wishlist_df['Delete'] = [False for _ in range(len(wishlist_df))]
         
         # Editable DataFrame
         edited_wishlist_df = df_placeholder.data_editor(wishlist_df, use_container_width=True, disabled=("Ticker", "Current Price", "STATUS"), hide_index=True)
 
         with button_col3:
-            if st.button('Edit Wishlist' if not st.session_state.edit_mode else 'Delete Stocks'):
-                st.session_state.edit_mode = not st.session_state.edit_mode
+            if st.button('Edit Wishlist' if not st.session_state.wishlist_edit_mode else 'Delete Stocks'):
+                st.session_state.wishlist_edit_mode = not st.session_state.wishlist_edit_mode
 
                 # If switching to delete mode, save any changes first
-                if not st.session_state.edit_mode:
+                if not st.session_state.wishlist_edit_mode:
                     selected_tickers = edited_wishlist_df[edited_wishlist_df['Delete']].Ticker.tolist()
                     if selected_tickers:
                         delete_stocks(selected_tickers)
