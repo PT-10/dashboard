@@ -10,11 +10,11 @@ from wishlist import display_wishlist
 
 def main():
     st.title('Stock Dashboard')
-    json_file_path = 'purchase_info.json'
+    json_file_path = './data/purchase_info.json'
     csv_file_path = None
     
-    if os.path.exists('meta_data.json'):
-        with open('meta_data.json', 'r') as file:
+    if os.path.exists('./data/meta_data.json'):
+        with open('./data/meta_data.json', 'r') as file:
             #make dict object
             file_dict = json.load(file)
             last_key = list(file_dict.keys())[-1]

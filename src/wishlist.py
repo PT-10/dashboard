@@ -5,7 +5,7 @@ from classes import Wishlist_Stock
 import time
 
 def display_wishlist():
-    wishlist_json_path = 'wishlist.json'
+    wishlist_json_path = './data/wishlist.json'
     # Initialize session state variables
     if 'wishlist' not in st.session_state:
         st.session_state.wishlist = load_wishlist(wishlist_json_path)

@@ -5,16 +5,8 @@ import yfinance as yf
 from datetime import datetime
 import logging
 
-def process_historic_data_for_json(historical_data, tail_length=10):
-    historical_data_dict = historical_data.tail(tail_length).reset_index().rename(columns={'index': 'Date'}).to_dict(orient='records')
-    keys_to_delete = ["Open", "Low", "Volume", "Dividends", "Stock Splits", "High"]
-    for entry in historical_data_dict:
-        entry['Date'] = entry['Date'].isoformat()
-        for key in keys_to_delete:
-            del entry[key]
-    return historical_data_dict
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 class StockDashboard:
     def __init__(self, json_file_path, csv_file_path):
@@ -27,17 +19,17 @@ class StockDashboard:
         self.first_time = False
         
     def load_meta_data(self):
-        if not os.path.exists('meta_data.json'):
+        if not os.path.exists('./data/meta_data.json'):
             self.first_time = True
-            with open('meta_data.json', 'w') as f:
+            with open('./data/meta_data.json', 'w') as f:
                 json.dump({}, f, indent=4)
 
         else:
-            with open('meta_data.json', 'r') as f:
+            with open('./data/meta_data.json', 'r') as f:
                 return json.load(f)
             
     def save_meta_data(self):
-        with open('meta_data.json', 'w') as f:
+        with open('./data/meta_data.json', 'w') as f:
             json.dump(self.meta_data, f, indent=4)
 
     def save_purchase_info(self, purchase_info):
@@ -112,8 +104,6 @@ class StockDashboard:
                 self.purchase_info[stock_code]['average_price'] = self.df[self.df['Instrument'] == stock_code]['Avg. cost'].values[0]
 
         return self.purchase_info   
-
-
 
 class Stock:
     def __init__(self, ticker_code, purchase_date, dashboard, threshold_percentage, requires_fetching=True):
@@ -261,6 +251,7 @@ class Stock:
             self.threshold_price = self.get_threshold_price()
         return self.max_price, self.threshold_price
     
+    
     def historical_data_rolling_window_update(self):
         today_data_dict = self.yfticker.history(period='1d')
         keys_to_delete = ["Open", "Low", "Volume", "Dividends", "Stock Splits", "High"]
@@ -270,8 +261,20 @@ class Stock:
                 del entry[key]
         historical_data_json = self.dashboard.purchase_info[self.ticker_code]['historic_data']
         historical_data_json = historical_data_json[1:].append(today_data_dict, ignore_index=True)   
+
+
+    def process_historic_data_for_json(self, tail_length=10):
+        historical_data_dict = self.historical_data.tail(tail_length).reset_index().rename(columns={'index': 'Date'}).to_dict(orient='records')
+        keys_to_delete = ["Open", "Low", "Volume", "Dividends", "Stock Splits", "High"]
+        for entry in historical_data_dict:
+            entry['Date'] = entry['Date'].isoformat()
+            for key in keys_to_delete:
+                del entry[key]
+        return historical_data_dict
+
+
     def add_to_dashboard_json(self):
-        historical_data_dict = process_historic_data_for_json(self.historical_data, tail_length=10)
+        historical_data_dict = self.process_historic_data_for_json(tail_length=10)
 
         self.dashboard.purchase_info[self.ticker_code] = {
             "suffix": self.suffix,
@@ -323,7 +326,7 @@ class Stock:
         if self.ticker_code in self.dashboard.purchase_info:
             # Update only the changed fields
             self.dashboard.purchase_info[self.ticker_code]['purchase_date'] = self.purchase_date
-            self.dashboard.purchase_info[self.ticker_code]['historic_data'] = process_historic_data_for_json(self.historical_data, tail_length=10)
+            self.dashboard.purchase_info[self.ticker_code]['historic_data'] = self.process_historic_data_for_json(tail_length=10)
             
             self.dashboard.purchase_info[self.ticker_code]['max_price'] = self.max_price
             self.dashboard.purchase_info[self.ticker_code]['threshold_price'] = self.threshold_price
