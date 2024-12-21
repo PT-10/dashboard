@@ -444,47 +444,66 @@ def main():
         
         st.write('Historical Stock Prices')
 
+        # Fetch purchase information
         purchase_info = dashboard.get_purchase_info()
-    
+
         if purchase_info:
-            # Maximum number of columns per row
-            max_cols = 5
-            # Number of graphs to be displayed
-            num_graphs = len(purchase_info)
+            # Add a dropdown to select the sorting order
+            col11, col12 = st.columns([1, 5])  # Adjust ratio (e.g., 1:4) to control dropdown width
+            with col11:
+                # Add a dropdown to select the sorting order
+                sort_order = st.selectbox(
+                    "Sort stocks by:",
+                    options=["Alphabetical (A-Z)", "Reverse Alphabetical (Z-A)", "Purchase Date (Oldest First)", "Purchase Date (Newest First)"]
+                )
             
-            # Calculate the number of rows needed
-            num_rows = (num_graphs + max_cols - 1) // max_cols
+            # Sort stocks based on user selection
+            if sort_order == "Alphabetical (A-Z)":
+                sorted_purchase_info = dict(sorted(purchase_info.items()))
+            elif sort_order == "Reverse Alphabetical (Z-A)":
+                sorted_purchase_info = dict(sorted(purchase_info.items(), reverse=True))
+            elif sort_order == "Purchase Date (Oldest First)":
+                sorted_purchase_info = dict(sorted(purchase_info.items(), key=lambda item: item[1]["purchase_date"]))
+            elif sort_order == "Purchase Date (Newest First)":
+                sorted_purchase_info = dict(sorted(purchase_info.items(), key=lambda item: item[1]["purchase_date"], reverse=True))
+    
+
+            col1, col2, col3 = st.columns([1, 1, 3])
+            with col1:
+                st.write("**Stock**")
+            with col2:
+                st.write("**Purchase Date**")
+            with col3:
+                st.write("**Graph**")
+
             
-            for row_index in range(num_rows):
-                # Calculate the number of columns to use in the current row
-                if row_index * max_cols + max_cols <= num_graphs:
-                    num_cols = max_cols
-                else:
-                    num_cols = num_graphs % max_cols if num_graphs % max_cols != 0 else max_cols
+            # Iterate through each stock and display them in rows
+            for ticker_code, info in sorted_purchase_info.items():
+                # Prepare historical and today data
+                historical_data = pd.DataFrame(info['historic_data'])
+                historical_data['Date'] = pd.to_datetime(historical_data['Date'])
+                historical_data.set_index('Date', inplace=True)
                 
-                cols = st.columns(num_cols)
+                today_data = pd.DataFrame(columns=['Close', 'last_fetched_time'])
+                today_data['Close'] = [info['last_fetched_price']]
+                today_data['last_fetched_time'] = [(info['last_fetched_time'])]
                 
-                for col_index in range(num_cols):
-                    idx = row_index * max_cols + col_index
-                    if idx < num_graphs:
-                        ticker_code = list(purchase_info.keys())[idx]
-                        info = purchase_info[ticker_code]
-                  
-                        historical_data = pd.DataFrame(info['historic_data'])
-                        historical_data['Date'] = pd.to_datetime(historical_data['Date'])
-                        historical_data.set_index('Date', inplace=True)
+                # Create a row with two columns for each stock
+                col1, col2, col3 = st.columns([1, 1, 3])  # Adjust column width ratio (1:3 for better visuals)
+                
+                with col1:
+                    st.write(f"**{ticker_code}**")
+                
+                with col2:
+                    stock_purchase_date = reverse_date_string(info["purchase_date"])
+                    st.write(f"{stock_purchase_date}")
 
-                        today_data = pd.DataFrame(columns=['Close', 'last_fetched_time'])
-                        today_data['Close'] = [info['last_fetched_price']]
+                with col3:
+                    fig = plot_data(historical_data, today_data, ticker_code)
+                    st.plotly_chart(fig, use_container_width=False)
 
-                        today_data['last_fetched_time'] = [(info['last_fetched_time'])]
-                        # print(today_data)
-                        with cols[col_index]:
-                            fig = plot_data(historical_data, today_data, ticker_code)
-                            st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        with cols[col_index]:
-                            st.write("No data available")
+                st.markdown("<hr>", unsafe_allow_html=True)
+
 
     with tabs[2]:
         #scatter plot

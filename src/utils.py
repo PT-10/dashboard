@@ -154,7 +154,7 @@ def plot_data(historical_data, today_data, stock_name):
             x=historical_data.index,
             y=historical_data['Close'],
             mode='lines+markers',
-            name=f'{stock_name} Historical Data',
+            # name=f'{stock_name} Historical Data',
             line=dict(color='blue', width=2),
             marker=dict(color='white', size=8, symbol='circle', line=dict(color='black', width=1))
         ))
@@ -169,7 +169,7 @@ def plot_data(historical_data, today_data, stock_name):
                 x=[historical_data.index[-1], convert_to_iso_format(str(today_data['last_fetched_time'].values[0]))],
                 y=[prev_close, today_close],
                 mode='lines+markers',
-                name=f'{stock_name} Current Data',
+                # name=f'{stock_name} Current Data',
                 line=dict(color=line_color, width=2, dash='dot'),
                 marker=dict(color=line_color)
             ))
@@ -183,14 +183,18 @@ def plot_data(historical_data, today_data, stock_name):
             marker=dict(color='grey')
         ))
     
-    fig.update_layout(title=f'{stock_name}',
-                      xaxis_title='Date',
-                      yaxis_title='Price',
+    fig.update_layout(
+                    # title=f'{stock_name}',
+                    #   xaxis_title='Date',
+                    #   yaxis_title='Price',
                       xaxis_rangeslider_visible=False,
                       template='plotly_dark',
-                      height=400,
-                      width=800,
-                      showlegend=False)
+                      height=150,
+                      width=250,
+                      showlegend=False,
+                      margin=dict(l=0, r=0, t=0.5, b=0.5),
+                      xaxis=dict(showline=False, zeroline=False, showgrid=False, ticks=""),
+                    yaxis=dict(showline=False, zeroline=False, showgrid=False, ticks=""))
     
     return fig
 
@@ -281,3 +285,5 @@ def plot_scatter_plot(dashboard):
     return fig
 
 
+def reverse_date_string(date_str):
+    return datetime.strptime(date_str, '%Y-%m-%d').strftime('%d-%m-%Y')
