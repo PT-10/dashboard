@@ -1,10 +1,31 @@
-import streamlit as st
-import pandas as pd
-from utils import load_wishlist, save_wishlist, set_status
-from classes import Wishlist_Stock
+import os
 import time
+import json
+import pandas as pd
+import streamlit as st
+from classes.wishlist_stock import Wishlist_Stock
+from utils.helpers import set_status
+
+
+def load_wishlist(json_file_path):
+    if not os.path.exists(json_file_path):
+            with open(json_file_path, 'w') as f:
+                json.dump({}, f, indent=4)
+
+    if os.path.exists(json_file_path):
+        with open(json_file_path, 'r') as f:
+            return json.load(f)
+
+
+def save_wishlist(wishlist, json_file_path):
+    with open(json_file_path, 'w') as f:
+        json.dump(wishlist, f, indent=4)
+
+
+
 
 def display_wishlist():
+
     wishlist_json_path = './data/wishlist.json'
     # Initialize session state variables
     if 'wishlist' not in st.session_state:

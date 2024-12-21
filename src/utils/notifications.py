@@ -1,5 +1,5 @@
-import platform
 import os
+import platform
 from plyer import notification
 
 def send_stock_notifications(df):

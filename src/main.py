@@ -1,13 +1,21 @@
-import streamlit as st
-import pandas as pd
 import os
-import concurrent.futures
+import sys
 import time
+import pandas as pd
+import streamlit as st
+import concurrent.futures
+
 from datetime import datetime
-from utils import *
-from classes import *
-from wishlist import display_wishlist
-from notifications import send_stock_notifications
+from utils.helpers import *
+from classes.stock import *
+from classes.wishlist_stock import *
+from classes.stock_dashboard import *
+from components.graphs import display_price_graphs, plot_scatter_plot
+from components.wishlist import display_wishlist
+from utils.notifications import send_stock_notifications
+
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
+
 
 def main():
     st.title('Stock Dashboard')
@@ -268,7 +276,7 @@ def main():
                     disabled_columns = [col for col in styled_df.columns if col not in editable_columns]
                     
                     # Update the existing table placeholder
-                    edited_data = st.data_editor(st.session_state.display_df_results, use_container_width=True, hide_index = not st.session_state.show_index, disabled=disabled_columns)
+                    edited_data = st.data_editor(st.session_state.display_df_results, use_container_width=True, hide_index = not st.session_state.show_index, disabled=disabled_columns, key="edited")
                     # print(edited_data)
                 save_button = st.button('Save Changes', key='save_button')
                 if save_button and st.session_state.edit_mode:
@@ -407,7 +415,7 @@ def main():
                         results.append(result)
 
                     df_results = pd.DataFrame(results)
-                    print(df_results.columns)
+                    # print(df_results.columns)
 
                     #check which rows have the column 'STATUS' != 'PREV STATUS'
                     stocks_with_updated_status_df = df_results[df_results['STATUS'] != df_results['PREV STATUS']]
@@ -419,14 +427,14 @@ def main():
                     # Style DataFrame
                     styled_df = style_dataframe(visible_df, df_results)
 
-                    editable_columns = []
-                    disabled_columns = [col for col in styled_df.columns if col not in editable_columns]
+                    # editable_columns = []
+                    # disabled_columns = [col for col in styled_df.columns if col not in editable_columns]
                     
                     # Update the existing table placeholder
-                    table_placeholder.data_editor(styled_df, use_container_width=True, hide_index = not st.session_state.show_index, disabled=disabled_columns)
+                    table_placeholder.dataframe(styled_df, use_container_width=True, hide_index = not st.session_state.show_index)
                     
                     # Update last updated time
-                    last_updated_text = f"Last updated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    last_updated_text = f"Last updated at: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}"
                     last_updated_placeholder.write(last_updated_text)
                     
                 time.sleep(refresh_interval)
@@ -441,69 +449,7 @@ def main():
             # st.session_state.stop_fetching = True
     
     with tabs[1]:
-        
-        st.write('Historical Stock Prices')
-
-        # Fetch purchase information
-        purchase_info = dashboard.get_purchase_info()
-
-        if purchase_info:
-            # Add a dropdown to select the sorting order
-            col11, col12 = st.columns([1, 5])  # Adjust ratio (e.g., 1:4) to control dropdown width
-            with col11:
-                # Add a dropdown to select the sorting order
-                sort_order = st.selectbox(
-                    "Sort stocks by:",
-                    options=["Alphabetical (A-Z)", "Reverse Alphabetical (Z-A)", "Purchase Date (Oldest First)", "Purchase Date (Newest First)"]
-                )
-            
-            # Sort stocks based on user selection
-            if sort_order == "Alphabetical (A-Z)":
-                sorted_purchase_info = dict(sorted(purchase_info.items()))
-            elif sort_order == "Reverse Alphabetical (Z-A)":
-                sorted_purchase_info = dict(sorted(purchase_info.items(), reverse=True))
-            elif sort_order == "Purchase Date (Oldest First)":
-                sorted_purchase_info = dict(sorted(purchase_info.items(), key=lambda item: item[1]["purchase_date"]))
-            elif sort_order == "Purchase Date (Newest First)":
-                sorted_purchase_info = dict(sorted(purchase_info.items(), key=lambda item: item[1]["purchase_date"], reverse=True))
-    
-
-            col1, col2, col3 = st.columns([1, 1, 3])
-            with col1:
-                st.write("**Stock**")
-            with col2:
-                st.write("**Purchase Date**")
-            with col3:
-                st.write("**Graph**")
-
-            
-            # Iterate through each stock and display them in rows
-            for ticker_code, info in sorted_purchase_info.items():
-                # Prepare historical and today data
-                historical_data = pd.DataFrame(info['historic_data'])
-                historical_data['Date'] = pd.to_datetime(historical_data['Date'])
-                historical_data.set_index('Date', inplace=True)
-                
-                today_data = pd.DataFrame(columns=['Close', 'last_fetched_time'])
-                today_data['Close'] = [info['last_fetched_price']]
-                today_data['last_fetched_time'] = [(info['last_fetched_time'])]
-                
-                # Create a row with two columns for each stock
-                col1, col2, col3 = st.columns([1, 1, 3])  # Adjust column width ratio (1:3 for better visuals)
-                
-                with col1:
-                    st.write(f"**{ticker_code}**")
-                
-                with col2:
-                    stock_purchase_date = reverse_date_string(info["purchase_date"])
-                    st.write(f"{stock_purchase_date}")
-
-                with col3:
-                    fig = plot_data(historical_data, today_data, ticker_code)
-                    st.plotly_chart(fig, use_container_width=False)
-
-                st.markdown("<hr>", unsafe_allow_html=True)
-
+        display_price_graphs(dashboard)
 
     with tabs[2]:
         #scatter plot
