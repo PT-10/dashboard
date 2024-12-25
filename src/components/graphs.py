@@ -12,10 +12,13 @@ def plot_line_graph(historical_data, today_data, stock_name):
         fig.add_trace(go.Scatter(
             x=historical_data.index,
             y=historical_data['Close'],
-            mode='lines+markers',
+            mode='lines',
+            # mode='lines+markers',
             # name=f'{stock_name} Historical Data',
             line=dict(color='blue', width=2),
-            marker=dict(color='white', size=8, symbol='circle', line=dict(color='black', width=1))
+            # marker=dict(color='white', size=8, symbol='circle', line=dict(color='black', width=1))
+            # marker=dict(color='white', size=8, line=dict(color='black', width=1))
+
         ))
         
         if not today_data.empty:
@@ -27,10 +30,11 @@ def plot_line_graph(historical_data, today_data, stock_name):
             fig.add_trace(go.Scatter(
                 x=[historical_data.index[-1], convert_to_iso_format(str(today_data['last_fetched_time'].values[0]))],
                 y=[prev_close, today_close],
-                mode='lines+markers',
+                mode='lines',
+                # mode='lines+markers',
                 # name=f'{stock_name} Current Data',
                 line=dict(color=line_color, width=2, dash='dot'),
-                marker=dict(color=line_color)
+                # marker=dict(color=line_color)
             ))
     else:
         fig.add_trace(go.Scatter(
