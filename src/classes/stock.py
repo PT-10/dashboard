@@ -1,6 +1,8 @@
+import os
 import pandas as pd
 import yfinance as yf
 from datetime import datetime
+from utils.historic_data import download_historic_info
 
    
 
@@ -26,6 +28,7 @@ class Stock:
         self.buy_threshold = None
         self.sell_threshold = None
         self.status = None
+        self.historic_file_path = None
         if requires_fetching:
             # print(self.ticker_code, self.suffix)
             # logging.info(f"Initializing {self.ticker_code} for fetching.")
@@ -154,18 +157,6 @@ class Stock:
             self.max_price = max(self.max_price, self.last_fetched_price)
             self.threshold_price = self.get_threshold_price()
         return self.max_price, self.threshold_price
-    
-    
-    def historical_data_rolling_window_update(self):
-        today_data_dict = self.yfticker.history(period='1d')
-        keys_to_delete = ["Open", "Low", "Volume", "Dividends", "Stock Splits", "High"]
-        for entry in today_data_dict:
-            entry['Date'] = entry['Date'].isoformat()
-            for key in keys_to_delete:
-                del entry[key]
-        historical_data_json = self.dashboard.purchase_info[self.ticker_code]['historic_data']
-        historical_data_json = historical_data_json[1:].append(today_data_dict, ignore_index=True)   
-
 
     def process_historic_data_for_json(self, tail_length=10):
         historical_data_dict = self.historical_data.tail(tail_length).reset_index().rename(columns={'index': 'Date'}).to_dict(orient='records')
@@ -217,7 +208,16 @@ class Stock:
 
     def delete_stock(self):
         if self.ticker_code in self.dashboard.purchase_info:
+            # stock_file_path = f"data/stock_historic_data/{self.ticker_code}_{self.suffix}.json"
             del self.dashboard.purchase_info[self.ticker_code]
+
+            # also delete historic data file
+            
+            if os.path.exists(self.historic_file_path):
+                os.remove(self.historic_file_path)
+            else:
+                print(f"The file {self.historic_file_path} does not exist")
+
             self.dashboard.save_purchase_info(self.dashboard.purchase_info)
         else:
             print(f"Ticker code {self.ticker_code} not found in purchase_info.")
@@ -228,7 +228,11 @@ class Stock:
         self.historical_data = self.fetch_historical_data()
         self.max_price = self.get_max_price()
         self.threshold_price = self.get_threshold_price()
-        
+
+        # update stock historic data at self.historic_file_path
+
+        download_historic_info(self.ticker_code, self.suffix, self.purchase_date)       
+      
         # Check if the ticker_code exists in the purchase_info
         if self.ticker_code in self.dashboard.purchase_info:
             # Update only the changed fields

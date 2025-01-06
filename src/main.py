@@ -7,6 +7,8 @@ import concurrent.futures
 
 from datetime import datetime
 from utils.helpers import *
+from utils.historic_data import *
+from utils.flag import *
 from classes.stock import *
 from classes.wishlist_stock import *
 from classes.stock_dashboard import *
@@ -60,6 +62,7 @@ def main():
         dashboard.csv_file_path = st.session_state.file_path
         dashboard.new_csv = True
         dashboard.process_new_csv()
+        update_historic_data()
         # process_new_csv_json(dashboard)
 
         # Display processing success message
@@ -156,6 +159,8 @@ def main():
                     if selected_instrument:
                         purchase_date_str = purchase_date.strftime('%Y-%m-%d')  # Convert to yyyy-mm-dd format
                         stock = Stock(selected_instrument, purchase_date_str, dashboard, threshold_percentage, requires_fetching=True)
+                        download_historic_info(stock.ticker_code, stock.suffix, purchase_date_str)
+                        stock.historic_file_path = f"data/stock_historic_data/{stock.ticker_code}_{stock.suffix}.json"
                         stock.add_to_dashboard_json()
                         #Add to stock_objects
                         st.session_state.stock_objects[selected_instrument] = stock
@@ -168,6 +173,14 @@ def main():
 
         else:
             # Display existing stock data
+            # Function to run once per day
+            if not has_run_today():
+                # Run the function if it's the first time today
+                update_historic_data()
+                # Mark the function as run today
+                mark_run_today()
+            else:
+                pass
             purchase_info = dashboard.get_purchase_info()
             if purchase_info:
                 # stock_objects = {}
