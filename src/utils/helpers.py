@@ -38,9 +38,16 @@ def process_fetched_stock_data(stock):
     # logging.info(f"Processing data for {stock.ticker_code}.")
     # logging.info(f"Initializing {stock.ticker_code} for fetching.")
     prev_status = stock.status
+    prev_price = stock.last_fetched_price
+    prev_last_fetched_time = stock.last_fetched_time
+    
     stock.update_data()
     stock.max_price, stock.threshold_price = stock.update_max_price_from_current()
     stock.status = set_status(stock.last_fetched_price, stock.buy_threshold, stock.sell_threshold)
+    if stock.last_fetched_price == None:
+        stock.last_fetched_price = prev_price
+        stock.last_fetched_time = prev_last_fetched_time
+        
     stock.add_to_dashboard_json()
     logging.info(f"Data fetched for {stock.ticker_code}: {stock.last_fetched_price}")
     

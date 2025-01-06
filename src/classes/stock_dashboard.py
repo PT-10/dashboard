@@ -90,14 +90,22 @@ class StockDashboard:
             del self.purchase_info[stock_code]
 
         for stock_code in common_stocks:
+            new_qty = self.df[self.df['Instrument'] == stock_code]['Qty.'].values[0]
+            new_num_shares = self.df[self.df['Instrument'] == stock_code]['Avg. cost'].values[0]
+
+            shares_bool = self.purchase_info[stock_code]['num_shares'] != new_qty
+            avg_price_bool = self.purchase_info[stock_code]['average_price'] != new_num_shares
+
             #check if Qty corresponding to the stock has changed, if yes then update
-            if self.purchase_info[stock_code]['num_shares'] != self.df[self.df['Instrument'] == stock_code]['Qty.'].values[0]:
-                self.purchase_info[stock_code]['num_shares'] = int(self.df[self.df['Instrument'] == stock_code]['Qty.'].values[0])
+            if shares_bool:
+                self.purchase_info[stock_code]['num_shares'] = int(new_qty)
         
             #check if average price corresponding to the stock has changed, if yes then update  
-            if self.purchase_info[stock_code]['average_price'] != self.df[self.df['Instrument'] == stock_code]['Avg. cost'].values[0]:
-                self.purchase_info[stock_code]['average_price'] = self.df[self.df['Instrument'] == stock_code]['Avg. cost'].values[0]
-
+            if avg_price_bool:
+                self.purchase_info[stock_code]['average_price'] = new_num_shares
+            
+            if shares_bool or avg_price_bool:
+                self.purchase_info[stock_code]['investment_value'] = (new_qty)*(new_num_shares)
         return self.purchase_info
     
     # def process_new_csv_json(self):
