@@ -299,6 +299,7 @@ def main():
                     # Update the existing table placeholder
                     edited_data = st.data_editor(st.session_state.display_df_results, use_container_width=True, hide_index = not st.session_state.show_index, disabled=disabled_columns, key="edited")
                     # print(edited_data)
+                    
                 save_button = st.button('Save Changes', key='save_button')
                 if save_button and st.session_state.edit_mode:
                     for index, row in edited_data.iterrows():
@@ -315,7 +316,7 @@ def main():
 
                         status = set_status(current_price, buy_threshold, sell_threshold)
 
-                        dashboard.purchase_info[ticker_code]['STATUS'] = status
+                        # dashboard.purchase_info[ticker_code]['STATUS'] = status
                         st.session_state.stock_objects[ticker_code].status = status
 
                     dashboard.save_purchase_info(dashboard.purchase_info)
@@ -430,30 +431,30 @@ def main():
                             # st.session_state.stock_objects[ticker_code] = Stock(ticker_code, purchase_date, dashboard, threshold_percentage, requires_fetching=True)
                             futures.append(executor.submit(process_fetched_stock_data, st.session_state.stock_objects[ticker_code]))
 
-                    results = []
+                    fetch_results = []
                     for future in concurrent.futures.as_completed(futures):
-                        result = future.result()
-                        results.append(result)
+                        fetch_result = future.result()
+                        fetch_results.append(fetch_result)
 
-                    df_results = pd.DataFrame(results)
+                    df_results_fetched = pd.DataFrame(fetch_results)
                     # print(df_results.columns)
 
                     #check which rows have the column 'STATUS' != 'PREV STATUS'
-                    stocks_with_updated_status_df = df_results[df_results['STATUS'] != df_results['PREV STATUS']]
+                    stocks_with_updated_status_df = df_results_fetched[df_results_fetched['STATUS'] != df_results_fetched['PREV STATUS']]
                     send_stock_notifications(stocks_with_updated_status_df)
                     
                     # Filter DataFrame based on visible columns
-                    visible_df = df_results[st.session_state.visible_columns]
+                    visible_df_fetched = df_results_fetched[st.session_state.visible_columns]
                     
                     # Style DataFrame
-                    styled_df = style_dataframe(visible_df, df_results)
+                    styled_df_fetched = style_dataframe(visible_df_fetched, df_results_fetched)
 
                     # editable_columns = []
                     # disabled_columns = [col for col in styled_df.columns if col not in editable_columns]
                     
                     # Update the existing table placeholder
-                    table_placeholder.dataframe(styled_df, use_container_width=True, hide_index = not st.session_state.show_index)
-                    
+                    table_placeholder.dataframe(styled_df_fetched, use_container_width=True, hide_index = not st.session_state.show_index)
+                    st.session_state.display_df_results = styled_df_fetched
                     # Update last updated time
                     last_updated_text = f"Last updated at: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}"
                     last_updated_placeholder.write(last_updated_text)
