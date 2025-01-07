@@ -169,7 +169,7 @@ def main():
                         stock = Stock(selected_instrument, purchase_date_str, dashboard, threshold_percentage, requires_fetching=True)
                         
                         stock.historic_file_path = f"data/stock_historic_data/{stock.ticker_code}_{stock.suffix}.json"
-                        stock.add_to_dashboard_json()
+                        stock.add_to_dashboard_json(fetch_historic_data=True)
                         #Add to stock_objects
                         st.session_state.stock_objects[selected_instrument] = stock
 
@@ -348,7 +348,7 @@ def main():
                             purchase_date_str = purchase_date.strftime('%Y-%m-%d')  # Convert to yyyy-mm-dd format
                             stock = Stock(selected_instrument, purchase_date_str, dashboard, threshold_percentage, requires_fetching=True)
                             st.session_state.stock_objects[ticker_code] = stock
-                            stock.add_to_dashboard_json()
+                            stock.add_to_dashboard_json(fetch_historic_data=True)
                             st.sidebar.success(f'Stock {selected_instrument} added successfully.')
                         else:
                             st.sidebar.warning('Please select a stock to add.')

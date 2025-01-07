@@ -48,7 +48,7 @@ def process_fetched_stock_data(stock):
         stock.last_fetched_price = prev_price
         stock.last_fetched_time = prev_last_fetched_time
         
-    stock.add_to_dashboard_json()
+    stock.add_to_dashboard_json(fetch_historic_data=False)
     logging.info(f"Data fetched for {stock.ticker_code}: {stock.last_fetched_price}")
     
     return {

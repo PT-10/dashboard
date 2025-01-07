@@ -22,9 +22,9 @@ def send_stock_notifications(df):
                 alert_messages.append(f"📉 {ticker}: BUY ALERT! (Below {buy_price})")
             # elif status == "":
             #     alert_messages.append(f"✅ {ticker}: HOLD (Within Range)")
-            else:
-                # Handle case where status is not recognized or empty
-                alert_messages.append(f"⚠️ {ticker}: Unknown status '{status}' for price {current_price:.2f}")
+            # else:
+            #     # Handle case where status is not recognized or empty
+            #     alert_messages.append(f"⚠️ {ticker}: Unknown status '{status}' for price {current_price:.2f}")
         except Exception as e:
             alert_messages.append(f"⚠️ Error fetching data for {row['Stock']}: {str(e)}")
 

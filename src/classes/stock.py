@@ -171,9 +171,10 @@ class Stock:
         return historical_data_dict
 
 
-    def add_to_dashboard_json(self):
+    def add_to_dashboard_json(self, fetch_historic_data=True):
         historical_data_dict = self.process_historic_data_for_json(tail_length=10)
-        download_historic_info(self.ticker_code, self.suffix, self.purchase_date, output_folder="./data/stock_historic_data")
+        if fetch_historic_data:
+            download_historic_info(self.ticker_code, self.suffix, self.purchase_date, output_folder="./data/stock_historic_data")
 
         self.dashboard.purchase_info[self.ticker_code] = {
             "suffix": self.suffix,
