@@ -20,8 +20,8 @@ def send_stock_notifications(df):
                 alert_messages.append(f"📈 {ticker}: SELL ALERT! (Above {sell_price})")
             elif status == "BUY":
                 alert_messages.append(f"📉 {ticker}: BUY ALERT! (Below {buy_price})")
-            elif status == "":
-                alert_messages.append(f"✅ {ticker}: HOLD (Within Range)")
+            # elif status == "":
+            #     alert_messages.append(f"✅ {ticker}: HOLD (Within Range)")
             else:
                 # Handle case where status is not recognized or empty
                 alert_messages.append(f"⚠️ {ticker}: Unknown status '{status}' for price {current_price:.2f}")

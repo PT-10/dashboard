@@ -21,4 +21,3 @@ def mark_run_today():
     today = datetime.date.today().strftime('%Y-%m-%d')
     with open(flag_file, 'w') as f:
         f.write(today)
-

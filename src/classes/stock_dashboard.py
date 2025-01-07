@@ -87,6 +87,12 @@ class StockDashboard:
         common_stocks = list(common_stocks)
 
         for stock_code in stocks_to_delete:
+            suffix = self.purchase_info[stock_code]["suffix"]
+            if os.path.exists(f"data/stock_historic_data/{stock_code}_{suffix}.json"):
+                os.remove(f"data/stock_historic_data/{stock_code}_{suffix}.json")
+            else:
+                print(f"The file {f"data/stock_historic_data/{stock_code}_{suffix}.json"} does not exist")
+
             del self.purchase_info[stock_code]
 
         for stock_code in common_stocks:

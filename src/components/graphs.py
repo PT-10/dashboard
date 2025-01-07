@@ -41,7 +41,7 @@ def plot_small_scale_line_graph(historical_data, today_data, stock_name):
         fig.add_trace(go.Scatter(
             x=[],
             y=[],
-            mode='lines+markers',
+            # mode='lines+markers',
             name=f'{stock_name} No Historical Data',
             line=dict(color='grey', width=2),
             marker=dict(color='grey')
@@ -63,49 +63,45 @@ def plot_small_scale_line_graph(historical_data, today_data, stock_name):
     return fig
 
 
-
-
 def convert_to_datetime(date_str):
     return pd.to_datetime(date_str)
 
-@st.cache_resource(ttl=36000, show_spinner = True)
-def plot_historic_line_graph(stock_symbol, stock_data_json_path):
+# Cache the data (instead of the entire function) to avoid redundant reads
+@st.cache_data(ttl=36000, show_spinner=True)
+def load_stock_data(stock_data_json_path):
     with open(stock_data_json_path, 'r') as file:
-        historical_data = json.load(file)
-    
-    # If the data exists, we need to convert the dictionary to a format suitable for plotting
-    if historical_data:
-        # Extract dates and closing prices
-        dates = list(historical_data.keys())
-        closing_prices = list(historical_data.values())
-        
-        # Convert dates to datetime for proper sorting and plotting
-        dates = [convert_to_datetime(date) for date in dates]
-        
-        # Create a DataFrame from the data for easier handling
-        df = pd.DataFrame({
-            'Date': dates,
-            'Close': closing_prices
-        }).sort_values(by='Date')  # Sort by date in case it's not sorted
-        
-        fig = go.Figure()
+        return json.load(file)
 
-        # Plot all the data (historical + today's data)
+# Optimized plot function
+@st.cache_resource(ttl=36000, show_spinner=True)
+def plot_historic_line_graph(stock_symbol, stock_data_json_path):
+    historical_data = load_stock_data(stock_data_json_path)
+    
+    if historical_data:
+        # Create a DataFrame directly from the data, no need to convert dates separately
+        df = pd.DataFrame(
+            list(historical_data.items()), columns=['Date', 'Close']
+        )
+        # print(stock_symbol)
+        # print(df)
+        # Convert 'Date' column to datetime in one step and sort by date
+        df['Date'] = pd.to_datetime(df['Date'])
+        df = df.sort_values(by='Date')  # Sorting the DataFrame by Date
+        
+        # Create the plot
+        fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=df['Date'],
             y=df['Close'],
-            # mode='lines+markers',  # Show both the line and markers
             line=dict(color='blue', width=2),
-            # marker=dict(color='blue', size=6, line=dict(color='black', width=1))  # Mark each data point
         ))
 
     else:
-        # If no historical data exists, show a "No Data" plot
+        # If no data exists, return an empty plot with a "No Data" message
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=[],
             y=[],
-            # mode='lines+markers',
             name=f'{stock_symbol} No Historical Data',
             line=dict(color='grey', width=2),
             marker=dict(color='grey')
@@ -113,11 +109,9 @@ def plot_historic_line_graph(stock_symbol, stock_data_json_path):
 
     # Update layout to match the small-scale graph style
     fig.update_layout(
-        # title=f"{stock_symbol} Historical Data",  # Optional title
         xaxis_rangeslider_visible=False,
         template='plotly_dark',
         height=150,
-        # width=250,
         showlegend=False,
         margin=dict(l=0, r=1, t=0.5, b=0.5),
         xaxis=dict(showline=False, zeroline=False, showgrid=False, ticks=""),
@@ -215,13 +209,15 @@ def display_price_graphs(dashboard):
             sorted_purchase_info = dict(sorted(purchase_info.items(), key=lambda item: item[1]["purchase_date"], reverse=True))
 
 
-        col1, col2, col3, col4 = st.columns([0.8, 0.8, 2, 2])
+        col1, col2, col3, col4 = st.columns([0.8, 0.8, 2, 1])
         with col1:
             st.write("**Stock**")
         with col2:
             st.write("**Purchase Date**")
         with col3:
-            st.write("**Graph**")
+            st.write("**Historic Graph**")
+        with col4:
+            st.write("**15 Days Graph**")
 
         
         # Iterate through each stock and display them in rows
@@ -236,7 +232,7 @@ def display_price_graphs(dashboard):
             today_data['last_fetched_time'] = [(info['last_fetched_time'])]
             
             # Create a row with two columns for each stock
-            col1, col2, col3, col4 = st.columns([0.8, 0.8, 2, 2])  # Adjust column width ratio (1:3 for better visuals)
+            col1, col2, col3, col4 = st.columns([0.8, 0.8, 2, 1])  # Adjust column width ratio (1:3 for better visuals)
             
             with col1:
                 st.write(f"**{ticker_code}**")

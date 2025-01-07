@@ -26,7 +26,7 @@ def process_stock(stock):
         "Current Price": stock.last_fetched_price,
         "% CP of Max": ((stock.last_fetched_price - stock.max_price) / stock.max_price) * 100,
         "Investment Value": stock.investment_val,
-        "Present Value": stock.present_val,
+        "Present Value": round(stock.present_val,2),
         "Gains": int(stock.present_val - stock.investment_val),
         "Gain %": ((stock.present_val - stock.investment_val) / stock.investment_val) * 100,
         'BUY': stock.buy_threshold,
@@ -62,7 +62,7 @@ def process_fetched_stock_data(stock):
         "Current Price": stock.last_fetched_price,
         "% CP of Max": ((stock.last_fetched_price - stock.max_price) / stock.max_price) * 100,
         "Investment Value": stock.investment_val,
-        "Present Value": stock.present_val,
+        "Present Value": round(stock.present_val,2),
         "Gains": int(stock.present_val - stock.investment_val),
         "Gain %": ((stock.present_val - stock.investment_val) / stock.investment_val) * 100,
         'BUY': stock.buy_threshold,
@@ -110,6 +110,7 @@ def style_dataframe(df, df_results):
         "Purchase Date": format_to_indian_date,
         "Average Price": "{:.2f}",
         "Max Price": "{:.2f}",
+        "Present Value": "{:.0f}",
         "Threshold Price": "{:.2f}",
         "Current Price": "{:.2f}",
         "% CP of Max": "{:.2f}",
@@ -119,11 +120,11 @@ def style_dataframe(df, df_results):
     # Apply styles to DataFrame
     #check if the column is present in the dataframe
     if 'Current Price' in df.columns:
-        df_styled = df_styled.applymap(lambda value: style_current_price(value, df[df['Current Price'] == value].index[0]), subset=['Current Price'])
+        df_styled = df_styled.map(lambda value: style_current_price(value, df[df['Current Price'] == value].index[0]), subset=['Current Price'])
     if 'Gain %' in df.columns:
-        df_styled = df_styled.applymap(style_gain_percentage, subset=['Gain %'])
+        df_styled = df_styled.map(style_gain_percentage, subset=['Gain %'])
     if 'Gains' in df.columns:
-        df_styled = df_styled.applymap(lambda x: 'color: red;' if x < 0 else 'color: rgba(34, 188, 88);', subset=['Gains'])
+        df_styled = df_styled.map(lambda x: 'color: red;' if x < 0 else 'color: rgba(34, 188, 88);', subset=['Gains'])
 
     return df_styled
 
@@ -135,6 +136,9 @@ def set_status(last_fetched_price, buy_threshold, sell_threshold):
         if sell_threshold:
             if float(last_fetched_price) >= float(sell_threshold):
                 return "SELL"
-        return ""
+        if buy_threshold and sell_threshold:
+            if float(buy_threshold) < float(last_fetched_price) < float(sell_threshold):
+                return ""
 
+        return ""
 

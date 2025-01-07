@@ -49,6 +49,7 @@ class Stock:
         self.present_val = self.get_present_value()
         self.last_fetched_price = self.get_today_data()
         self.last_fetched_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.historic_file_path = f"data/stock_historic_data/{self.ticker_code}_{self.suffix}.json"
 
     def load_existing_data(self):
         if self.ticker_code in self.dashboard.purchase_info:
@@ -69,6 +70,8 @@ class Stock:
             self.buy_threshold = info['BUY']
             self.sell_threshold = info['SELL']
             self.status = info['STATUS']
+            self.historic_file_path = f"data/stock_historic_data/{self.ticker_code}_{self.suffix}.json"
+
 
     def get_suffix(self):
         ticker = f"{self.ticker_code}.NS"
@@ -148,7 +151,7 @@ class Stock:
             return int(investment)
 
     def get_present_value(self):
-        present_value = round(self.get_today_data() * self.num_shares)
+        present_value = round(self.get_today_data() * self.num_shares, 2)
         # present_value = round(self.dashboard.purchase_info[self.ticker_code]['last_fetched_price'] * self.num_shares)
         return int(present_value)
     
@@ -170,6 +173,7 @@ class Stock:
 
     def add_to_dashboard_json(self):
         historical_data_dict = self.process_historic_data_for_json(tail_length=10)
+        download_historic_info(self.ticker_code, self.suffix, self.purchase_date, output_folder="./data/stock_historic_data")
 
         self.dashboard.purchase_info[self.ticker_code] = {
             "suffix": self.suffix,
@@ -231,7 +235,7 @@ class Stock:
 
         # update stock historic data at self.historic_file_path
 
-        download_historic_info(self.ticker_code, self.suffix, self.purchase_date)       
+        download_historic_info(self.ticker_code, self.suffix, self.purchase_date, output_folder="./data/stock_historic_data")       
       
         # Check if the ticker_code exists in the purchase_info
         if self.ticker_code in self.dashboard.purchase_info:
