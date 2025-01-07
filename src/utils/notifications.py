@@ -41,13 +41,37 @@ def send_notification(os_type, title, message):
         send_linux_notification(title, message)
 
 def send_windows_notification(title, message):
-    """Send a notification on Windows using plyer."""
-    notification.notify(
-        title=title,
-        message=message,
-        app_name="Stock Price Alert",
-        timeout=10  # Duration in seconds
-    )
+    """Send a notification on Windows using plyer, ensuring each chunk is within the limit."""
+    max_message_length = 256
+    current_chunk = ""
+    chunks = []
+
+    # Split the messages into chunks
+    for alert_message in message:
+        # Check if adding this message to the current chunk exceeds the limit
+        if len(current_chunk) + len(alert_message) + 1 > max_message_length:  # +1 for newline separator
+            # If it does, push the current chunk and start a new one with the current message
+            chunks.append(current_chunk)
+            current_chunk = alert_message
+        else:
+            # Otherwise, add the message to the current chunk
+            if current_chunk:
+                current_chunk += "\n" + alert_message
+            else:
+                current_chunk = alert_message
+
+    # Add the last chunk if there's any remaining
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    # Send each chunk as a separate notification
+    for chunk in chunks:
+        notification.notify(
+            title=title,
+            message=chunk,
+            app_name="Stock Price Alert",
+            timeout=10  # Duration in seconds
+        )
 
 def send_linux_notification(title, message):
     """Send a notification on Linux using notify-send."""
