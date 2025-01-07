@@ -91,7 +91,8 @@ class StockDashboard:
             if os.path.exists(f"data/stock_historic_data/{stock_code}_{suffix}.json"):
                 os.remove(f"data/stock_historic_data/{stock_code}_{suffix}.json")
             else:
-                print(f"The file {f"data/stock_historic_data/{stock_code}_{suffix}.json"} does not exist")
+                print(f"The file ./data/stock_historic_data/{stock_code}_{suffix}.json does not exist")
+                continue
 
             del self.purchase_info[stock_code]
 
