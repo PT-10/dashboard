@@ -14,7 +14,7 @@ def download_historic_info(stock_symbol, suffix, purchase_date, output_folder):
     # Extract only the 'Close' prices and convert to dictionary with string dates
     closing_prices = data['Close']
     closing_prices = closing_prices.to_dict()
-    closing_prices = {str(date): price for date, price in closing_prices.items()}
+    closing_prices = {str(date): price for date, price in closing_prices[ticker].items()}
 
     # Define the output file path
     output_file = os.path.join(output_folder, f"{stock_symbol}_{suffix}.json")
