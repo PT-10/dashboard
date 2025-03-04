@@ -195,17 +195,17 @@ def display_price_graphs(dashboard):
             # Add a dropdown to select the sorting order
             sort_order = st.selectbox(
                 "Sort stocks by:",
-                options=["Alphabetical (A-Z)", "Reverse Alphabetical (Z-A)", "Purchase Date (Oldest First)", "Purchase Date (Newest First)"]
+                options=["A-Z", "Z-A", "Oldest Purchase", "Newest Purchase"]
             )
         
         # Sort stocks based on user selection
-        if sort_order == "Alphabetical (A-Z)":
+        if sort_order == "A-Z":
             sorted_purchase_info = dict(sorted(purchase_info.items()))
-        elif sort_order == "Reverse Alphabetical (Z-A)":
+        elif sort_order == "Z-A":
             sorted_purchase_info = dict(sorted(purchase_info.items(), reverse=True))
-        elif sort_order == "Purchase Date (Oldest First)":
+        elif sort_order == "Oldest Purchase":
             sorted_purchase_info = dict(sorted(purchase_info.items(), key=lambda item: item[1]["purchase_date"]))
-        elif sort_order == "Purchase Date (Newest First)":
+        elif sort_order == "Newest Purchase":
             sorted_purchase_info = dict(sorted(purchase_info.items(), key=lambda item: item[1]["purchase_date"], reverse=True))
 
 
