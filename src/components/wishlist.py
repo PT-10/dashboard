@@ -7,6 +7,7 @@ from classes.wishlist_stock import Wishlist_Stock
 from utils.helpers import set_status
 import concurrent.futures
 import logging
+from curl_cffi.requests.exceptions import HTTPError
 from utils.notifications import send_stock_notifications
 
 def load_wishlist(json_file_path):
@@ -45,13 +46,15 @@ def display_wishlist():
         st.session_state.wishlist_edit_mode = False
 
     def fetch_and_update_wishlist_stock(ticker_code, stock, buy_threshold, sell_threshold):
-        stock.get_today_data()
+        stock.last_fetched_price = stock.get_today_data()
         last_price = stock.last_fetched_price
         status = set_status(last_price, buy_threshold, sell_threshold)
         return ticker_code, last_price, status
 
-    col1, col4, col2, col3 = st.columns([1, 5, 1, 1])
+    col1, col4, col2, col3 = st.columns([1, 9, 1, 1])
 
+    mode = st.radio("", ["Normal Mode", "Edit Mode"], index=0, horizontal=True)
+    
     with col1:
         refresh_rate_options = {
             '15 seconds': 15,
@@ -106,7 +109,7 @@ def display_wishlist():
                 # Gather results and update session state in the main thread
                 for future in concurrent.futures.as_completed(futures):
                     ticker_code, last_price, status = future.result()
-                    st.session_state.wishlist[ticker_code]['current_price'] = last_price
+                    st.session_state.wishlist[ticker_code]['Current Price'] = last_price
                     st.session_state.wishlist[ticker_code]['STATUS'] = status
                     logging.info(f"Data fetched for {ticker_code}: {last_price}")
 
@@ -115,8 +118,8 @@ def display_wishlist():
 
             # Display the updated wishlist
             saved_wishlist_df = pd.DataFrame.from_dict(st.session_state.wishlist, orient='index').reset_index()
-            saved_wishlist_df = saved_wishlist_df.drop(columns=['exchange'])
-            saved_wishlist_df.rename(columns={'index': 'Ticker', 'current_price': 'Current Price'}, inplace=True)
+            saved_wishlist_df = saved_wishlist_df.drop(columns=['exchange', "Delete"])
+            saved_wishlist_df.rename(columns={'index': 'Stock'}, inplace=True)
             st.dataframe(saved_wishlist_df, use_container_width=True)
 
             time.sleep(refresh_interval)  # Pause before next fetch cycle
@@ -125,41 +128,60 @@ def display_wishlist():
             st.session_state.fetching = False
             print("Stop button has been pressed in wishlist", st.session_state.wishlist_fetching)
 
-    mode = st.radio("Select Mode", ["Normal Mode", "Edit Mode"], index=0)
+    
 
     if mode == "Edit Mode":
-        st.subheader("➕ Add New Stock")
+        st.subheader("➕ Add New Stock(s)")
         with st.form("add_stock", clear_on_submit=True):
-            ticker_code = st.text_input("Enter Ticker (e.g., RELIANCE)")
-            ticker_code = ticker_code.upper()
+            ticker_input = st.text_input("Enter Ticker(s) (e.g., RELIANCE, TCS, INFY)")
             selected_exchange = st.selectbox("Select Index", ["NS", "BO"], index=0)
             submitted = st.form_submit_button("Add")
+
             if submitted:
-                if ticker_code:
-                    if ticker_code not in st.session_state.wishlist:
-                        stock = Wishlist_Stock(ticker_code, selected_exchange)
-                        st.session_state.wishlist[ticker_code] = {
-                            "current_price": stock.last_fetched_price,
-                            "exchange": selected_exchange,
-                            "BUY": "",
-                            "SELL": "",
-                            "STATUS": "",
-                            "Delete": False
-                        }
-                        # new_entry = st.session_state.wishlist[ticker_code]
-                        st.session_state.wishlist_stock_objects[ticker_code] = stock 
-                        # st.session_state.wishlist = pd.concat([st.session_state.wishlist, pd.DataFrame([new_entry])], ignore_index=True) # Store the stock object
-                        save_wishlist(st.session_state.wishlist, wishlist_json_path)  # Save changes to JSON
-                        st.success(f'Stock {ticker_code} added to the wishlist!')
-                    else:
-                        st.warning('Stock already in wishlist.')
+                if ticker_input:
+                    ticker_codes = [ticker.strip().upper() for ticker in ticker_input.split(",") if ticker.strip()]
+                    added = []
+                    skipped = []
+                    invalid = []
+
+                    for ticker_code in ticker_codes:
+                        if ticker_code in st.session_state.wishlist:
+                            skipped.append(ticker_code)
+                            continue
+
+                        try:
+                            stock = Wishlist_Stock(ticker_code, selected_exchange)
+                            # success, add to wishlist
+                            st.session_state.wishlist[ticker_code] = {
+                                "Current Price": stock.last_fetched_price,
+                                "exchange": selected_exchange,
+                                "BUY": "",
+                                "SELL": "",
+                                "STATUS": "",
+                                "Delete": False
+                            }
+                            st.session_state.wishlist_stock_objects[ticker_code] = stock
+                            added.append(ticker_code)
+                        except ValueError as e:
+                            invalid.append((ticker_code, str(e)))
+
+
+                    if added:
+                        save_wishlist(st.session_state.wishlist, wishlist_json_path)
+                        st.success(f"Added: {', '.join(added)}")
+                    if skipped:
+                        st.warning(f"Already in wishlist: {', '.join(skipped)}")
+                    if invalid:
+                        for ticker, reason in invalid:
+                            st.error(f"❌ {ticker}: {reason}")
                 else:
-                    st.warning('Please enter a ticker code.')
+                    st.warning("Please enter at least one ticker code.")
+
 
     # --- Editable Table ---
     if mode == "Edit Mode":
         wishlist_df = pd.DataFrame.from_dict(st.session_state.wishlist, orient='index').reset_index()
-        wishlist_df.rename(columns={'index': 'Ticker'}, inplace=True)
+        wishlist_df.rename(columns={'index': 'Stock'}, inplace=True)
 
         edited_df = st.data_editor(
             wishlist_df,
@@ -168,44 +190,79 @@ def display_wishlist():
             key="stock_editor"
         )
 
-        # --- Delete Rows ---
-        if st.button("🗑️ Delete Selected Items"):
-            edited_df = edited_df[edited_df["Delete"] == False].reset_index(drop=True)
-            st.session_state.wishlist = edited_df.set_index("Ticker").to_dict(orient="index")
-   
-            # st.session_state.wishlist = edited_df
-            save_wishlist(st.session_state.wishlist, wishlist_json_path)
-            st.rerun()
+        col_misc, col_save, col_del  = st.columns([8, 1, 1])
+        with col_del:
+            # --- Delete Rows ---
+            if st.button("🗑️ Delete Items"):
+                edited_df = edited_df[edited_df["Delete"] == False].reset_index(drop=True)
+                st.session_state.wishlist = edited_df.set_index("Stock").to_dict(orient="index")
+    
+                # st.session_state.wishlist = edited_df
+                save_wishlist(st.session_state.wishlist, wishlist_json_path)
+                st.rerun()
 
-        # --- Save Button ---
-        if st.button("💾 Save Changes"):
-            # Fetch latest price and determine status for each stock
-            # edited_df["Price"] = edited_df.apply(
-            #     lambda row: fetch_price(f"{row['Ticker']}.{row['Index']}"), axis=1
-            # )
-            edited_df["STATUS"] = edited_df.apply(
-                lambda row: set_status(row["current_price"], row["BUY"], row["SELL"]),
-                axis=1
-            )
-            st.session_state.wishlist = edited_df.set_index("Ticker").to_dict(orient="index")
-            save_wishlist(st.session_state.wishlist, wishlist_json_path)
-            st.success("Watchlist saved and updated with latest prices.")
+        with col_save:
+            # --- Save Button ---
+            if st.button("💾 Save Changes"):
+                # Convert old wishlist to DataFrame for comparison
+                old_df = pd.DataFrame.from_dict(st.session_state.wishlist, orient='index').reset_index()
+                old_df.rename(columns={'index': 'Stock'}, inplace=True)
+                # print(type(st.session_state.wishlist))
+                # print(st.session_state.wishlist)
+                # print("Old df", old_df)
+                # Recalculate statuses for the edited DataFrame
+                edited_df["STATUS"] = edited_df.apply(
+                    lambda row: set_status(row["Current Price"], row["BUY"], row["SELL"]),
+                    axis=1
+                )
+
+                # Find rows where status has changed
+                changed_rows = []
+                for _, new_row in edited_df.iterrows():
+                    old_row = old_df[old_df['Stock'] == new_row['Stock']]
+                    if old_row.empty:
+                        # New row added
+                        changed_rows.append(new_row)
+                    else:
+                        old_status = old_row.iloc[0].get("STATUS", "")
+                        if new_row["STATUS"] != old_status:
+                            changed_rows.append(new_row)
+
+                st.session_state.wishlist = edited_df.set_index("Stock").to_dict(orient="index")
+                save_wishlist(st.session_state.wishlist, wishlist_json_path)
+
+                # Send notifications for changed rows
+                if changed_rows:
+                    changed_df = pd.DataFrame(changed_rows)
+                    send_stock_notifications(changed_df)
+                    # Save updated wishlist to session state and file
+                    # st.session_state.wishlist = edited_df.set_index("Stock").to_dict(orient="index")
+                    # save_wishlist(st.session_state.wishlist, wishlist_json_path)
+                    # st.success("Wishlist saved and updated with latest prices.")
+
+                # Save updated wishlist to session state and file
+                with col_misc:
+                    st.success("Wishlist saved")
+
 
 
     # --- Final Display (Current Watchlist with Prices) ---
     if mode == "Normal Mode":
-        st.subheader("📊 Current Watchlist")
+        st.subheader("📊 Current Wishlist")
         df_display = pd.DataFrame.from_dict(st.session_state.wishlist, orient='index').reset_index()
+        df_display.rename(columns={'index': 'Stock'}, inplace=True)
 
         # Check if data exists in the watchlist
         if not df_display.empty:
             if "Delete" in df_display.columns:
                 df_display = df_display.drop(columns=["Delete"])
+            if "exchange" in df_display.columns:
+                df_display = df_display.drop(columns=["exchange"])
 
             # Show the current price along with other details
             st.dataframe(df_display, use_container_width=True)
         else:
-            st.warning("No stock data available.")
+            st.warning("No stocks added")
 
 
             

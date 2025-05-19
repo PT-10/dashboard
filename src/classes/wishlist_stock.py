@@ -15,8 +15,9 @@ class Wishlist_Stock():
         # self.sell_price = self.get_sell_price()
 
     def get_today_data(self):
-        if self.yfticker.history(period='1d').empty:
-            return None
-        today_data = self.yfticker.history(period='1d')
-        return today_data['Close'].values[0] if not today_data.empty else None
+        data = self.yfticker.history(period='1d')
+        if data.empty:
+            raise ValueError(f"{self.ticker_code}.{self.suffix}: possibly delisted or invalid ticker.")
+        return data['Close'].values[0]
+
 

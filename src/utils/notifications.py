@@ -12,7 +12,7 @@ def send_stock_notifications(df):
             ticker = row["Stock"]
             buy_price = row["BUY"]
             sell_price = row["SELL"]
-            current_price = row["Present Value"]
+            # current_price = row["Present Value"]
             status = row["STATUS"]  # The status of the stock
 
             # Generate alert messages based on thresholds and status
