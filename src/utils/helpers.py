@@ -120,11 +120,11 @@ def style_dataframe(df, df_results):
     # Apply styles to DataFrame
     #check if the column is present in the dataframe
     if 'Current Price' in df.columns:
-        df_styled = df_styled.applymap(lambda value: style_current_price(value, df[df['Current Price'] == value].index[0]), subset=['Current Price'])
+        df_styled = df_styled.map(lambda value: style_current_price(value, df[df['Current Price'] == value].index[0]), subset=['Current Price'])
     if 'Gain %' in df.columns:
-        df_styled = df_styled.applymap(style_gain_percentage, subset=['Gain %'])
+        df_styled = df_styled.map(style_gain_percentage, subset=['Gain %'])
     if 'Gains' in df.columns:
-        df_styled = df_styled.applymap(lambda x: 'color: red;' if x < 0 else 'color: rgba(34, 188, 88);', subset=['Gains'])
+        df_styled = df_styled.map(lambda x: 'color: red;' if x < 0 else 'color: rgba(34, 188, 88);', subset=['Gains'])
 
     return df_styled
 

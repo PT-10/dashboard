@@ -106,9 +106,10 @@ def main():
             purchase_info = dashboard.get_purchase_info()
             st.session_state.stock_objects = {ticker_code: Stock(ticker_code, info['purchase_date'], dashboard, info['threshold_percentage'], requires_fetching=False) for ticker_code, info in purchase_info.items()}
     
-    tabs = st.tabs(['Dashboard', 'Graphs', 'Scatter Plot', 'Wishlist'])
+    # tabs = st.tabs(['Dashboard','Graphs', 'Scatter Plot', 'Wishlist'])
+    tab = st.radio("Select Tab", ["Dashboard", "Graphs", "Scatter Plot", "Wishlist"], horizontal=True)
 
-    with tabs[0]:
+    if tab == 'Dashboard':
         # Layout for refresh rate dropdown and buttons
         col1, col4, col2, col3 = st.columns([1, 5, 1, 1])
 
@@ -470,16 +471,16 @@ def main():
             
             # st.session_state.stop_fetching = True
     
-    with tabs[1]:
-        display_price_graphs(dashboard)
+    elif tab == 'Graphs':
+            display_price_graphs(dashboard)
 
-    with tabs[2]:
-        #scatter plot
-        st.write('Scatter Plot')
-        figure = plot_scatter_plot(dashboard)
-        st.plotly_chart(figure, use_container_width=True)
+    
+    elif tab == 'Scatter Plot':
+            st.write('Scatter Plot')
+            figure = plot_scatter_plot(dashboard)
+            st.plotly_chart(figure, use_container_width=True)
 
-    with tabs[3]:
+    elif tab == 'Wishlist':
         display_wishlist()
 
 if __name__ == "__main__":
