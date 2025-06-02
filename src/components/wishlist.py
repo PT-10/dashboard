@@ -39,7 +39,15 @@ def display_wishlist():
         st.session_state.wishlist_last_updated = None
     if 'wishlist_stock_objects' not in st.session_state:
         if st.session_state.wishlist:
-            st.session_state.wishlist_stock_objects = {ticker: Wishlist_Stock(ticker, st.session_state.wishlist[ticker]['exchange']) for ticker in st.session_state.wishlist}
+            st.session_state.wishlist_stock_objects = {
+                ticker: Wishlist_Stock(
+                    ticker_code=ticker,
+                    suffix=st.session_state.wishlist[ticker]['exchange'],
+                    wishlist_data=st.session_state.wishlist[ticker],
+                    requires_fetching=False
+                )
+                for ticker in st.session_state.wishlist
+            }        
         else:
             st.session_state.wishlist_stock_objects = {}
     if 'wishlist_edit_mode' not in st.session_state:
@@ -107,14 +115,32 @@ def display_wishlist():
                         )
 
                 # Gather results and update session state in the main thread
+                changed_rows = []
+
+                # Gather results and update session state in the main thread
                 for future in concurrent.futures.as_completed(futures):
-                    ticker_code, last_price, status = future.result()
-                    st.session_state.wishlist[ticker_code]['Current Price'] = last_price
-                    st.session_state.wishlist[ticker_code]['STATUS'] = status
-                    logging.info(f"Data fetched for {ticker_code}: {last_price}")
+                    ticker_code, last_price, new_status = future.result()
+                    current_data = st.session_state.wishlist[ticker_code]
+                    old_status = current_data.get("STATUS", "")
+                    current_data["Current Price"] = last_price
+                    current_data["STATUS"] = new_status
+
+                    if new_status != old_status and new_status in ["BUY", "SELL"]:
+                        changed_rows.append({
+                            "Stock": ticker_code,
+                            "BUY": current_data.get("BUY"),
+                            "SELL": current_data.get("SELL"),
+                            "STATUS": new_status
+                        })
+                    logging.info(f"Updated {ticker_code} → Price: {last_price} | Status: {new_status}")
 
                 # Save the updated wishlist to JSON
                 save_wishlist(st.session_state.wishlist, wishlist_json_path)
+
+                # Send notifications if any status changed
+                if changed_rows:
+                    changed_df = pd.DataFrame(changed_rows)
+                    send_stock_notifications(changed_df)
 
             # Display the updated wishlist
             saved_wishlist_df = pd.DataFrame.from_dict(st.session_state.wishlist, orient='index').reset_index()
@@ -150,7 +176,7 @@ def display_wishlist():
                             continue
 
                         try:
-                            stock = Wishlist_Stock(ticker_code, selected_exchange)
+                            stock = Wishlist_Stock(ticker_code, selected_exchange, requires_fetching=True)
                             # success, add to wishlist
                             st.session_state.wishlist[ticker_code] = {
                                 "Current Price": stock.last_fetched_price,
@@ -183,21 +209,25 @@ def display_wishlist():
         wishlist_df = pd.DataFrame.from_dict(st.session_state.wishlist, orient='index').reset_index()
         wishlist_df.rename(columns={'index': 'Stock'}, inplace=True)
 
+        # Set columns that should be non-editable
+        disabled_columns = {"Stock": True, "Current Price": True, "STATUS": True}
+
+        # Data editor for BUY and SELL editing only
         edited_df = st.data_editor(
             wishlist_df,
-            num_rows="dynamic",
             use_container_width=True,
+            hide_index=False,
+            disabled=disabled_columns,
             key="stock_editor"
         )
 
-        col_misc, col_save, col_del  = st.columns([8, 1, 1])
+        col_misc, col_save, col_del = st.columns([8, 1, 1])
+
         with col_del:
             # --- Delete Rows ---
             if st.button("🗑️ Delete Items"):
                 edited_df = edited_df[edited_df["Delete"] == False].reset_index(drop=True)
                 st.session_state.wishlist = edited_df.set_index("Stock").to_dict(orient="index")
-    
-                # st.session_state.wishlist = edited_df
                 save_wishlist(st.session_state.wishlist, wishlist_json_path)
                 st.rerun()
 
@@ -207,27 +237,25 @@ def display_wishlist():
                 # Convert old wishlist to DataFrame for comparison
                 old_df = pd.DataFrame.from_dict(st.session_state.wishlist, orient='index').reset_index()
                 old_df.rename(columns={'index': 'Stock'}, inplace=True)
-                # print(type(st.session_state.wishlist))
-                # print(st.session_state.wishlist)
-                # print("Old df", old_df)
+
                 # Recalculate statuses for the edited DataFrame
                 edited_df["STATUS"] = edited_df.apply(
                     lambda row: set_status(row["Current Price"], row["BUY"], row["SELL"]),
                     axis=1
                 )
 
-                # Find rows where status has changed
+                # Identify rows with changed statuses or newly added
                 changed_rows = []
                 for _, new_row in edited_df.iterrows():
                     old_row = old_df[old_df['Stock'] == new_row['Stock']]
                     if old_row.empty:
-                        # New row added
                         changed_rows.append(new_row)
                     else:
                         old_status = old_row.iloc[0].get("STATUS", "")
                         if new_row["STATUS"] != old_status:
                             changed_rows.append(new_row)
 
+                # Save updated wishlist to session state and file
                 st.session_state.wishlist = edited_df.set_index("Stock").to_dict(orient="index")
                 save_wishlist(st.session_state.wishlist, wishlist_json_path)
 
@@ -235,14 +263,10 @@ def display_wishlist():
                 if changed_rows:
                     changed_df = pd.DataFrame(changed_rows)
                     send_stock_notifications(changed_df)
-                    # Save updated wishlist to session state and file
-                    # st.session_state.wishlist = edited_df.set_index("Stock").to_dict(orient="index")
-                    # save_wishlist(st.session_state.wishlist, wishlist_json_path)
-                    # st.success("Wishlist saved and updated with latest prices.")
 
-                # Save updated wishlist to session state and file
                 with col_misc:
                     st.success("Wishlist saved")
+
 
 
 
