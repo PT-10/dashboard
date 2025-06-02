@@ -1,1 +1,3 @@
-
+- Python3.11 
+- yfinance 0.2.59 (previous stable version was 0.2.54, latest as of today is 0.2.61 but gives rate limit errors)
+- streamlit 1.45.1 (has stable data editor, additional utilities in dataframe)
