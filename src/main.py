@@ -13,10 +13,77 @@ from classes.stock import *
 from classes.wishlist_stock import *
 from classes.stock_dashboard import *
 from components.graphs import display_price_graphs, plot_scatter_plot
-from components.wishlist import display_wishlist
+from components.wishlist import display_wishlist, fetch_and_update_wishlist_stock, save_wishlist, load_wishlist
 from utils.notifications import send_stock_notifications
 
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
+def show_fetch_warning(failed_stocks):
+    if failed_stocks:
+        st.markdown(
+            f"""
+            <div style="background-color:rgba(255, 243, 205, 0.85); color:#856404; padding:10px 15px;
+                        border-radius:5px; border:1px solid #ffeeba; margin-bottom:10px;">
+                ⚠️ <strong>Failed to fetch data for:</strong> {', '.join(failed_stocks)}.<br>
+                Please check if these stocks are delisted or try refreshing.
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+def wishlist_fetching(wishlist_json_path, refresh_interval):
+    st.session_state.wishlist_fetching = True
+    print("Fetch button has been pressed for wishlist", st.session_state.wishlist_fetching)
+
+    while st.session_state.wishlist_fetching:
+        print("Wishlist fetching session state:", st.session_state.wishlist_fetching)
+        with st.spinner('Fetching data...'):
+            wishlist_futures = []
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                for ticker_code in st.session_state.wishlist:
+                    stock = st.session_state.wishlist_stock_objects.get(ticker_code)
+                    if not stock:
+                        exchange = st.session_state.wishlist[ticker_code]['exchange']
+                        stock = Wishlist_Stock(ticker_code, exchange)
+                        st.session_state.wishlist_stock_objects[ticker_code] = stock
+
+                    buy_threshold = st.session_state.wishlist[ticker_code]['BUY']
+                    sell_threshold = st.session_state.wishlist[ticker_code]['SELL']
+                    wishlist_futures.append(
+                        executor.submit(
+                            fetch_and_update_wishlist_stock,
+                            ticker_code, stock, buy_threshold, sell_threshold
+                        )
+                    )
+
+            # Gather results and update session state in the main thread
+            changed_rows = []
+
+            # Gather results and update session state in the main thread
+            for future in concurrent.futures.as_completed(wishlist_futures):
+                ticker_code, last_price, new_status = future.result()
+                current_data = st.session_state.wishlist[ticker_code]
+                old_status = current_data.get("STATUS", "")
+                current_data["Current Price"] = last_price
+                current_data["STATUS"] = new_status
+
+                if new_status != old_status and new_status in ["BUY", "SELL"]:
+                    changed_rows.append({
+                        "Stock": ticker_code,
+                        "BUY": current_data.get("BUY"),
+                        "SELL": current_data.get("SELL"),
+                        "STATUS": new_status
+                    })
+                logging.info(f"Updated {ticker_code} → Price: {last_price} | Status: {new_status}")
+
+            # Save the updated wishlist to JSON
+            save_wishlist(st.session_state.wishlist, wishlist_json_path)
+
+            # Send notifications if any status changed
+            if changed_rows:
+                changed_df = pd.DataFrame(changed_rows)
+                send_stock_notifications(changed_df)
+            time.sleep(refresh_interval)
+
 
 
 def main():
@@ -30,6 +97,7 @@ def main():
 
     st.title('Stock Dashboard')
     json_file_path = './data/purchase_info.json'
+    wishlist_json_path = './data/wishlist.json'
     csv_file_path = None
     
     if os.path.exists('./data/meta_data.json'):
@@ -106,6 +174,24 @@ def main():
             purchase_info = dashboard.get_purchase_info()
             st.session_state.stock_objects = {ticker_code: Stock(ticker_code, info['purchase_date'], dashboard, info['threshold_percentage'], requires_fetching=False) for ticker_code, info in purchase_info.items()}
     
+    if 'wishlist' not in st.session_state:
+        st.session_state.wishlist = load_wishlist(wishlist_json_path)
+    if 'wishlist_fetching' not in st.session_state:
+        st.session_state.wishlist_fetching = False
+    if 'wishlist_stock_objects' not in st.session_state:
+        if st.session_state.wishlist:
+            st.session_state.wishlist_stock_objects = {
+                ticker: Wishlist_Stock(
+                    ticker_code=ticker,
+                    suffix=st.session_state.wishlist[ticker]['exchange'],
+                    wishlist_data=st.session_state.wishlist[ticker],
+                    requires_fetching=False
+                )
+                for ticker in st.session_state.wishlist
+            }        
+        else:
+            st.session_state.wishlist_stock_objects = {}
+
     # tabs = st.tabs(['Dashboard','Graphs', 'Scatter Plot', 'Wishlist'])
     tab = st.radio("Select Tab", ["Dashboard", "Graphs", "Scatter Plot", "Wishlist"], horizontal=True)
 
@@ -214,6 +300,8 @@ def main():
                 total_stocks = len(df_results)
 
                 # Create a container for the summary cards
+                fetch_warning_placeholder = st.empty()
+
                 with summary_placeholder.expander('Summary', expanded=True):
                     col1, col2, col3 = st.columns(3)
                     
@@ -440,6 +528,8 @@ def main():
                     df_results_fetched = pd.DataFrame(fetch_results)
                     # print(df_results.columns)
 
+                    failed_stocks = df_results_fetched[df_results_fetched['FETCH_SUCCESS'] == False]['Stock'].tolist()
+                    show_fetch_warning(failed_stocks)
                     #check which rows have the column 'STATUS' != 'PREV STATUS'
                     stocks_with_updated_status_df = df_results_fetched[df_results_fetched['STATUS'] != df_results_fetched['PREV STATUS']]
                     send_stock_notifications(stocks_with_updated_status_df)
@@ -459,8 +549,10 @@ def main():
                     # Update last updated time
                     last_updated_text = f"Last updated at: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}"
                     last_updated_placeholder.write(last_updated_text)
-                    
-                time.sleep(refresh_interval)
+                
+                wishlist_fetching(wishlist_json_path, refresh_interval)
+                print("--------------------------WISHLIST FETCHED BRUV------------------------------")
+                
             
             # Start fetching data
             # fetch_data()

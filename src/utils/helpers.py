@@ -41,15 +41,44 @@ def process_fetched_stock_data(stock):
     prev_price = stock.last_fetched_price
     prev_last_fetched_time = stock.last_fetched_time
     
-    stock.update_data()
-    stock.max_price, stock.threshold_price = stock.update_max_price_from_current()
-    stock.status = set_status(stock.last_fetched_price, stock.buy_threshold, stock.sell_threshold)
-    if stock.last_fetched_price == None:
+    try:
+        stock.update_data()
+        stock.max_price, stock.threshold_price = stock.update_max_price_from_current()
+        stock.status = set_status(stock.last_fetched_price, stock.buy_threshold, stock.sell_threshold)
+        if stock.last_fetched_price == None:
+            stock.last_fetched_price = prev_price
+            stock.last_fetched_time = prev_last_fetched_time
+            
+        stock.add_to_dashboard_json(fetch_historic_data=False)
+        success = True
+        logging.info(f"Data fetched for {stock.ticker_code}: {stock.last_fetched_price}")
+
+    except Exception as e:
+        logging.error(f"Failed to process data for {stock.ticker_code}: {e}")
+        success = False
+        # revert to previous price/time to keep UI consistent
         stock.last_fetched_price = prev_price
         stock.last_fetched_time = prev_last_fetched_time
-        
-    stock.add_to_dashboard_json(fetch_historic_data=False)
-    logging.info(f"Data fetched for {stock.ticker_code}: {stock.last_fetched_price}")
+
+    # Safely compute "% CP of Max" avoiding None or zero division
+    try:
+        if stock.max_price and stock.last_fetched_price:
+            pct_cp_max = ((stock.last_fetched_price - stock.max_price) / stock.max_price) * 100
+        else:
+            pct_cp_max = None
+    except Exception as e:
+        logging.error(f"Error computing % CP of Max for {stock.ticker_code}: {e}")
+        pct_cp_max = None
+
+    # Safely compute Gains and Gain %
+    try:
+        gains = int(stock.present_val - stock.investment_val)
+        gain_pct = ((stock.present_val - stock.investment_val) / stock.investment_val) * 100 if stock.investment_val else None
+    except Exception as e:
+        logging.error(f"Error computing Gains for {stock.ticker_code}: {e}")
+        gains = None
+        gain_pct = None
+
     
     return {
         "Stock": stock.ticker_code,
@@ -60,15 +89,16 @@ def process_fetched_stock_data(stock):
         "Threshold%": stock.threshold_percentage,
         "Threshold Price": stock.threshold_price,
         "Current Price": stock.last_fetched_price,
-        "% CP of Max": ((stock.last_fetched_price - stock.max_price) / stock.max_price) * 100,
+        "% CP of Max": pct_cp_max,
         "Investment Value": stock.investment_val,
         "Present Value": round(stock.present_val,2),
-        "Gains": int(stock.present_val - stock.investment_val),
-        "Gain %": ((stock.present_val - stock.investment_val) / stock.investment_val) * 100,
+        "Gains": gains,
+        "Gain %": gain_pct,
         'BUY': stock.buy_threshold,
         'SELL': stock.sell_threshold,
         'STATUS': stock.status,
-        'PREV STATUS': prev_status
+        'PREV STATUS': prev_status,
+        'FETCH_SUCCESS': success
     }
 
 def convert_to_iso_format(date_str, timezone_str='Asia/Kolkata'):

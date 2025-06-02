@@ -24,7 +24,11 @@ def save_wishlist(wishlist, json_file_path):
     with open(json_file_path, 'w') as f:
         json.dump(wishlist, f, indent=4)
 
-
+def fetch_and_update_wishlist_stock(ticker_code, stock, buy_threshold, sell_threshold):
+    stock.last_fetched_price = stock.get_today_data()
+    last_price = stock.last_fetched_price
+    status = set_status(last_price, buy_threshold, sell_threshold)
+    return ticker_code, last_price, status
 
 
 def display_wishlist():
@@ -35,8 +39,6 @@ def display_wishlist():
         st.session_state.wishlist = load_wishlist(wishlist_json_path)
     if 'wishlist_fetching' not in st.session_state:
         st.session_state.wishlist_fetching = False
-    if 'wishlist_last_updated' not in st.session_state:
-        st.session_state.wishlist_last_updated = None
     if 'wishlist_stock_objects' not in st.session_state:
         if st.session_state.wishlist:
             st.session_state.wishlist_stock_objects = {
@@ -53,11 +55,7 @@ def display_wishlist():
     if 'wishlist_edit_mode' not in st.session_state:
         st.session_state.wishlist_edit_mode = False
 
-    def fetch_and_update_wishlist_stock(ticker_code, stock, buy_threshold, sell_threshold):
-        stock.last_fetched_price = stock.get_today_data()
-        last_price = stock.last_fetched_price
-        status = set_status(last_price, buy_threshold, sell_threshold)
-        return ticker_code, last_price, status
+
 
     col1, col4, col2, col3 = st.columns([1, 9, 1, 1])
 

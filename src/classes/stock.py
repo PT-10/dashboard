@@ -1,4 +1,5 @@
 import os
+import logging
 import pandas as pd
 import yfinance as yf
 from datetime import datetime
@@ -41,7 +42,8 @@ class Stock:
         self.suffix = self.get_suffix() if self.suffix is None else self.suffix
         self.yfticker = yf.Ticker(f"{self.ticker_code}.{self.suffix}")
         self.historical_data = self.fetch_historical_data()
-        self.max_price = self.get_max_price()
+        max_price = self.get_max_price()
+        self.max_price = max_price if max_price is not None else self.max_price
         self.avg_price = self.get_avg_price()
         self.threshold_price = self.get_threshold_price()
         self.num_shares = self.get_num_shares()
@@ -95,10 +97,16 @@ class Stock:
         return historical_data
 
     def get_today_data(self):
-        if self.yfticker.history(period='1d').empty:
+        try:
+            today_data = self.yfticker.history(period='1d')
+            if today_data.empty:
+                logging.warning(f"No data returned for {self.ticker_code} in get_today_data.")
+                return None
+            return today_data['Close'].values[0]
+        except Exception as e:
+            logging.error(f"Failed to fetch today's price for {self.ticker_code}: {e}")
             return None
-        today_data = self.yfticker.history(period='1d')
-        return today_data['Close'].values[0] if not today_data.empty else None
+
 
     def get_max_price(self):
         if self.yfticker.history(period='1d').empty:
@@ -108,8 +116,16 @@ class Stock:
         return historical_data['High'].max().round(2) if not historical_data.empty else None
     
     def get_threshold_price(self):
-        threshold_price = self.max_price * (1 - self.threshold_percentage * 0.01)
-        return round(threshold_price, 2)
+        if self.max_price is None or self.threshold_percentage is None:
+            logging.warning(f"Threshold price cannot be calculated for {self.ticker_code}: missing data. Threshold price not updated")
+            return self.last_fetched_price
+        try:
+            threshold_price = self.max_price * (1 - self.threshold_percentage * 0.01)
+            return round(threshold_price, 2)
+        except Exception as e:
+            logging.error(f"Error computing threshold price for {self.ticker_code}: {e}")
+            return self.last_fetched_price
+
 
     def get_avg_price(self):
         #get information from purchase_json
