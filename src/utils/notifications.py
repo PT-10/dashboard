@@ -2,6 +2,38 @@ import os
 import platform
 from plyer import notification
 
+def send_threshold_notifications(df):
+    os_type = platform.system().lower()  # OS type initialization outside the loop
+    
+    alert_messages = []  # List to collect the alert messages
+    
+    for idx, row in df.iterrows():
+        try:
+            ticker = row["Stock"]
+            threshold_price = row["Threshold Price"]
+            secondary_threshold_price = row["Secondary Threshold Price"]
+            # current_price = row["Present Value"]
+            status = row["CURRENT_THRESHOLD_STATUS"]  # The status of the stock
+
+            # Generate alert messages based on thresholds and status
+            if status == 2:
+                alert_messages.append(f"📈 {ticker}: STRONG DIP ALERT! (Below {secondary_threshold_price})")
+            elif status == 1:
+                alert_messages.append(f"📉 {ticker}: DROP ALERT! (Below {threshold_price})")
+            # elif status == "":
+            #     alert_messages.append(f"✅ {ticker}: HOLD (Within Range)")
+            # else:
+            #     # Handle case where status is not recognized or empty
+            #     alert_messages.append(f"⚠️ {ticker}: Unknown status '{status}' for price {current_price:.2f}")
+        except Exception as e:
+            alert_messages.append(f"⚠️ Error fetching data for {row['Stock']}: {str(e)}")
+
+    # Send notification if there are any alert messages
+    if alert_messages:
+        # message = "\n".join(alert_messages)  # Combine all alerts into one message
+        send_notification(os_type, "Stock prices drop summary", alert_messages)
+
+
 def send_stock_notifications(df):
     os_type = platform.system().lower()  # OS type initialization outside the loop
     

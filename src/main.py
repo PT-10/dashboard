@@ -14,7 +14,7 @@ from classes.wishlist_stock import *
 from classes.stock_dashboard import *
 from components.graphs import display_price_graphs, plot_scatter_plot
 from components.wishlist import display_wishlist, fetch_and_update_wishlist_stock, save_wishlist, load_wishlist
-from utils.notifications import send_stock_notifications
+from utils.notifications import send_stock_notifications, send_threshold_notifications
 
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
 def show_fetch_warning(failed_stocks):
@@ -542,9 +542,13 @@ def main():
 
                     failed_stocks = df_results_fetched[df_results_fetched['FETCH_SUCCESS'] == False]['Stock'].tolist()
                     show_fetch_warning(failed_stocks)
+
                     #check which rows have the column 'STATUS' != 'PREV STATUS'
                     stocks_with_updated_status_df = df_results_fetched[df_results_fetched['STATUS'] != df_results_fetched['PREV STATUS']]
                     send_stock_notifications(stocks_with_updated_status_df)
+
+                    stocks_with_updated_threshold_status_df = df_results_fetched[df_results_fetched['PREV_THRESHOLD_STATUS'] != df_results_fetched['CURRENT_THRESHOLD_STATUS']]
+                    send_threshold_notifications(stocks_with_updated_threshold_status_df)
                     
                     # Filter DataFrame based on visible columns
                     visible_df_fetched = df_results_fetched[st.session_state.visible_columns]

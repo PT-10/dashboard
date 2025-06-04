@@ -36,17 +36,27 @@ def process_stock(stock):
         'STATUS': stock.status
     }
 
+def threshold_check(current_price, threshold_price, secondary_threshold_price):
+    if threshold_price < current_price:
+        return 0
+    if secondary_threshold_price < current_price < threshold_price:
+        return 1
+    if current_price < secondary_threshold_price:
+        return 2
+
 def process_fetched_stock_data(stock):
     # logging.info(f"Processing data for {stock.ticker_code}.")
     # logging.info(f"Initializing {stock.ticker_code} for fetching.")
     prev_status = stock.status
     prev_price = stock.last_fetched_price
     prev_last_fetched_time = stock.last_fetched_time
+    prev_threshold_status = stock.threshold_status
     
     try:
         stock.update_data()
         stock.max_price, stock.threshold_price, stock.secondary_threshold_price = stock.update_max_price_from_current()
         stock.status = set_status(stock.last_fetched_price, stock.buy_threshold, stock.sell_threshold)
+        # stock.threshold_status = stock.threshold_check()
         if stock.last_fetched_price == None:
             stock.last_fetched_price = prev_price
             stock.last_fetched_time = prev_last_fetched_time
@@ -80,7 +90,6 @@ def process_fetched_stock_data(stock):
         logging.error(f"Error computing Gains for {stock.ticker_code}: {e}")
         gains = None
         gain_pct = None
-
     
     return {
         "Stock": stock.ticker_code,
@@ -102,7 +111,9 @@ def process_fetched_stock_data(stock):
         'SELL': stock.sell_threshold,
         'STATUS': stock.status,
         'PREV STATUS': prev_status,
-        'FETCH_SUCCESS': success
+        'FETCH_SUCCESS': success,
+        'PREV_THRESHOLD_STATUS': prev_threshold_status,
+        'CURRENT_THRESHOLD_STATUS': stock.threshold_status,
     }
 
 def convert_to_iso_format(date_str, timezone_str='Asia/Kolkata'):

@@ -32,6 +32,7 @@ class Stock:
         self.sell_threshold = None
         self.status = None
         self.historic_file_path = None
+        self.threshold_status = None
         if requires_fetching:
             # print(self.ticker_code, self.suffix)
             # logging.info(f"Initializing {self.ticker_code} for fetching.")
@@ -55,6 +56,7 @@ class Stock:
         self.last_fetched_price = self.get_today_data()
         self.last_fetched_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.historic_file_path = f"data/stock_historic_data/{self.ticker_code}_{self.suffix}.json"
+        self.threshold_status = self.threshold_check()
 
     def load_existing_data(self):
         if self.ticker_code in self.dashboard.purchase_info:
@@ -77,6 +79,7 @@ class Stock:
             self.sell_threshold = info['SELL']
             self.status = info['STATUS']
             self.historic_file_path = f"data/stock_historic_data/{self.ticker_code}_{self.suffix}.json"
+            self.threshold_status = self.threshold_check()
 
 
     def get_suffix(self):
@@ -156,6 +159,13 @@ class Stock:
             row = self.dashboard.get_holdings_data().loc[self.dashboard.get_holdings_data()['Instrument'] == self.ticker_code]
             return row['Avg. cost'].values[0] if not row.empty else None
             
+    def threshold_check(self):
+        if self.threshold_price < self.last_fetched_price:
+            return 0
+        if self.secondary_threshold_price < self.last_fetched_price < self.threshold_price:
+            return 1
+        if self.last_fetched_price < self.secondary_threshold_price:
+            return 2
 
     def get_num_shares(self):
         if self.ticker_code in self.dashboard.purchase_info:
