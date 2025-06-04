@@ -8,12 +8,13 @@ from utils.historic_data import download_historic_info
    
 
 class Stock:
-    def __init__(self, ticker_code, purchase_date, dashboard, threshold_percentage, requires_fetching=True):
+    def __init__(self, ticker_code, purchase_date, dashboard, threshold_percentage, secondary_threshold_percentage, requires_fetching=True):
         self.ticker_code = ticker_code
         self.suffix = None
         self.yfticker = None
         self.purchase_date = purchase_date
         self.threshold_percentage = threshold_percentage
+        self.secondary_threshold_percentage = secondary_threshold_percentage
         self.dashboard = dashboard
         self.today = pd.to_datetime('today').date()
         self.historical_data = pd.DataFrame()
@@ -22,6 +23,7 @@ class Stock:
         self.max_price = None
         self.num_shares = None
         self.threshold_price = None
+        self.secondary_threshold_price = None
         self.investment_val = None
         self.present_val = None
         self.last_fetched_price = None
@@ -46,6 +48,7 @@ class Stock:
         self.max_price = max_price if max_price is not None else self.max_price
         self.avg_price = self.get_avg_price()
         self.threshold_price = self.get_threshold_price()
+        self.secondary_threshold_price = self.get_secondary_threshold_price()
         self.num_shares = self.get_num_shares()
         self.investment_val = self.get_investment()
         self.present_val = self.get_present_value()
@@ -64,6 +67,7 @@ class Stock:
             self.historical_data['Date'] = pd.to_datetime(self.historical_data['Date'])
             self.historical_data.set_index('Date', inplace=True)
             self.threshold_price = info['threshold_price']
+            self.secondary_threshold_price = info['secondary_threshold_price']
             self.num_shares = self.get_num_shares()
             self.investment_val = self.get_investment()
             self.last_fetched_price = info['last_fetched_price']
@@ -118,13 +122,24 @@ class Stock:
     def get_threshold_price(self):
         if self.max_price is None or self.threshold_percentage is None:
             logging.warning(f"Threshold price cannot be calculated for {self.ticker_code}: missing data. Threshold price not updated")
-            return self.last_fetched_price
+            return self.threshold_price
         try:
             threshold_price = self.max_price * (1 - self.threshold_percentage * 0.01)
             return round(threshold_price, 2)
         except Exception as e:
             logging.error(f"Error computing threshold price for {self.ticker_code}: {e}")
-            return self.last_fetched_price
+            return self.threshold_price
+        
+    def get_secondary_threshold_price(self):
+        if self.max_price is None or self.threshold_percentage is None:
+            logging.warning(f"Threshold price cannot be calculated for {self.ticker_code}: missing data. Threshold price not updated")
+            return self.secondary_threshold_price
+        try:
+            secondary_threshold_price = self.max_price * (1 - (self.threshold_percentage + self.secondary_threshold_percentage) * 0.01)
+            return round(secondary_threshold_price, 2)
+        except Exception as e:
+            logging.error(f"Error computing threshold price for {self.ticker_code}: {e}")
+            return self.secondary_threshold_price
 
 
     def get_avg_price(self):
@@ -175,7 +190,8 @@ class Stock:
         if self.last_fetched_price is not None:
             self.max_price = max(self.max_price, self.last_fetched_price)
             self.threshold_price = self.get_threshold_price()
-        return self.max_price, self.threshold_price
+            self.secondary_threshold_price = self.get_secondary_threshold_price()
+        return self.max_price, self.threshold_price, self.secondary_threshold_price
 
     def process_historic_data_for_json(self, tail_length=10):
         historical_data_dict = self.historical_data.tail(tail_length).reset_index().rename(columns={'index': 'Date'}).to_dict(orient='records')
@@ -199,6 +215,8 @@ class Stock:
             "max_price": self.max_price,
             "threshold_percentage": self.threshold_percentage,
             "threshold_price": self.threshold_price,
+            'secondary_threshold_percentage': self.secondary_threshold_percentage,
+            "secondary_threshold_price": self.secondary_threshold_price,
             "average_price": self.avg_price,
             "investment_value": self.investment_val,
             "historic_data": historical_data_dict,
@@ -227,6 +245,24 @@ class Stock:
         else:
             print(f"Ticker code {self.ticker_code} not found in purchase_info.")
 
+
+    def edit_secondary_threshold_percentage(self, new_secondary_threshold_percentage):
+        # Update the secondary threshold percentage
+        self.secondary_threshold_percentage = new_secondary_threshold_percentage
+        self.secondary_threshold_price = self.get_secondary_threshold_price()
+
+        # Check if the ticker_code exists in the purchase_info
+        if self.ticker_code in self.dashboard.purchase_info:
+            # Update only the changed fields
+            self.dashboard.purchase_info[self.ticker_code]['secondary_threshold_percentage'] = self.secondary_threshold_percentage
+            self.dashboard.purchase_info[self.ticker_code]['secondary_threshold_price'] = self.secondary_threshold_price
+
+            # Save the updated information
+            self.dashboard.save_purchase_info(self.dashboard.purchase_info)
+        else:
+            print(f"Ticker code {self.ticker_code} not found in purchase_info.")
+
+
     def delete_stock(self):
         if self.ticker_code in self.dashboard.purchase_info:
             # stock_file_path = f"data/stock_historic_data/{self.ticker_code}_{self.suffix}.json"
@@ -249,6 +285,7 @@ class Stock:
         self.historical_data = self.fetch_historical_data()
         self.max_price = self.get_max_price()
         self.threshold_price = self.get_threshold_price()
+        self.secondary_threshold_price = self.get_secondary_threshold_price()
 
         # update stock historic data at self.historic_file_path
 
@@ -262,6 +299,7 @@ class Stock:
             
             self.dashboard.purchase_info[self.ticker_code]['max_price'] = self.max_price
             self.dashboard.purchase_info[self.ticker_code]['threshold_price'] = self.threshold_price
+            self.dashboard.purchase_info[self.ticker_code]['secondary_threshold_price'] = self.secondary_threshold_price
             
             # Save the updated information
             self.dashboard.save_purchase_info(self.dashboard.purchase_info)

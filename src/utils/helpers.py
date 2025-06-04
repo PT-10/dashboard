@@ -23,6 +23,8 @@ def process_stock(stock):
         "Max Price": stock.max_price,
         "Threshold%": stock.threshold_percentage,
         "Threshold Price": stock.threshold_price,
+        "Secondary Threshold%": stock.secondary_threshold_percentage,
+        "Secondary Threshold Price": stock.secondary_threshold_price,
         "Current Price": stock.last_fetched_price,
         "% CP of Max": ((stock.last_fetched_price - stock.max_price) / stock.max_price) * 100,
         "Investment Value": stock.investment_val,
@@ -43,7 +45,7 @@ def process_fetched_stock_data(stock):
     
     try:
         stock.update_data()
-        stock.max_price, stock.threshold_price = stock.update_max_price_from_current()
+        stock.max_price, stock.threshold_price, stock.secondary_threshold_price = stock.update_max_price_from_current()
         stock.status = set_status(stock.last_fetched_price, stock.buy_threshold, stock.sell_threshold)
         if stock.last_fetched_price == None:
             stock.last_fetched_price = prev_price
@@ -88,6 +90,8 @@ def process_fetched_stock_data(stock):
         "Max Price": stock.max_price,
         "Threshold%": stock.threshold_percentage,
         "Threshold Price": stock.threshold_price,
+        "Secondary Threshold%": stock.secondary_threshold_percentage,
+        "Secondary Threshold Price": stock.secondary_threshold_price,
         "Current Price": stock.last_fetched_price,
         "% CP of Max": pct_cp_max,
         "Investment Value": stock.investment_val,
@@ -142,6 +146,7 @@ def style_dataframe(df, df_results):
         "Max Price": "{:.2f}",
         "Present Value": "{:.0f}",
         "Threshold Price": "{:.2f}",
+        "Secondary Threshold Price": "{:.2f}",
         "Current Price": "{:.2f}",
         "% CP of Max": "{:.2f}",
         "Gain %": "{:.2f}"

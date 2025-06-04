@@ -34,6 +34,7 @@ class StockDashboard:
     def ensure_json_file(self):
         if not os.path.exists(self.json_file_path):
             self.save_purchase_info({})
+            
     def load_purchase_info(self):
         self.ensure_json_file()
         if os.path.exists(self.json_file_path):

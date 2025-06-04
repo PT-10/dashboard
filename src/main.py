@@ -161,18 +161,18 @@ def main():
     if 'visible_columns' not in st.session_state:
         st.session_state.visible_columns = [
             'Stock', 'Purchase Date', 'No. of Shares', 'Average Price', 'Max Price',
-            'Threshold%', 'Threshold Price', 'Current Price', '% CP of Max' ,'Investment Value', 'Present Value',
+            'Threshold Price', 'Current Price', '% CP of Max' ,'Investment Value', 'Present Value',
             'Gains', 'Gain %', 'BUY', 'SELL', 'STATUS'
         ]
     if 'show_index' not in st.session_state:
-        st.session_state.show_index = True
+        st.session_state.show_index = False
 
     if 'stock_objects' not in st.session_state:
         if is_new_file:
             st.session_state.stock_objects = {}
         else:
             purchase_info = dashboard.get_purchase_info()
-            st.session_state.stock_objects = {ticker_code: Stock(ticker_code, info['purchase_date'], dashboard, info['threshold_percentage'], requires_fetching=False) for ticker_code, info in purchase_info.items()}
+            st.session_state.stock_objects = {ticker_code: Stock(ticker_code, info['purchase_date'], dashboard, info['threshold_percentage'], info['secondary_threshold_percentage'], requires_fetching=False) for ticker_code, info in purchase_info.items()}
     
     if 'wishlist' not in st.session_state:
         st.session_state.wishlist = load_wishlist(wishlist_json_path)
@@ -249,11 +249,13 @@ def main():
                 selected_instrument = st.sidebar.selectbox('Select Stock', all_instruments)
                 purchase_date = st.sidebar.date_input('Purchase Date', min_value=datetime(2000, 1, 1), max_value=datetime.today())
                 threshold_percentage = st.sidebar.slider('Threshold Percentage', min_value=0, max_value=50, value=10)
+                secondary_threshold_percentage = st.sidebar.slider('Secondary Threshold Percentage', min_value=0, max_value=50, value=5)
+
 
                 if st.sidebar.button('Add Stock'):
                     if selected_instrument:
                         purchase_date_str = purchase_date.strftime('%Y-%m-%d')  # Convert to yyyy-mm-dd format
-                        stock = Stock(selected_instrument, purchase_date_str, dashboard, threshold_percentage, requires_fetching=True)
+                        stock = Stock(selected_instrument, purchase_date_str, dashboard, threshold_percentage, secondary_threshold_percentage, requires_fetching=True)
                         
                         stock.historic_file_path = f"data/stock_historic_data/{stock.ticker_code}_{stock.suffix}.json"
                         stock.add_to_dashboard_json(fetch_historic_data=True)
@@ -284,7 +286,8 @@ def main():
                     for ticker_code, info in purchase_info.items():
                         purchase_date = info['purchase_date']
                         threshold_percentage = info['threshold_percentage']
-                        st.session_state.stock_objects[ticker_code] = Stock(ticker_code, purchase_date, dashboard, threshold_percentage, requires_fetching=False)
+                        secondary_threshold_percentage = info['secondary_threshold_percentage']
+                        st.session_state.stock_objects[ticker_code] = Stock(ticker_code, purchase_date, dashboard, threshold_percentage, secondary_threshold_percentage, requires_fetching=False)
                         futures.append(executor.submit(process_stock, st.session_state.stock_objects[ticker_code]))
 
                 results = []
@@ -299,8 +302,6 @@ def main():
                 total_present_value = df_results['Present Value'].sum()
                 total_stocks = len(df_results)
 
-                # Create a container for the summary cards
-                fetch_warning_placeholder = st.empty()
 
                 with summary_placeholder.expander('Summary', expanded=True):
                     col1, col2, col3 = st.columns(3)
@@ -350,6 +351,8 @@ def main():
                         'Max Price': 'Max Price',
                         'Threshold%': 'Threshold%',
                         'Threshold Price': 'Threshold Price',
+                        'Secondary Threshold%': 'Secondary Threshold%',
+                        'Secondary Threshold Price': 'Secondary Threshold Price',
                         'Current Price': 'Current Price',
                         '% CP of Max': '% CP of Max',
                         'Investment Value': 'Investment Value',
@@ -419,7 +422,7 @@ def main():
                     table_placeholder.data_editor(styled_df, use_container_width=True, hide_index = not st.session_state.show_index, disabled=disabled_columns)
 
                 # Update last updated time
-                last_updated_text = f"Last updated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                last_updated_text = f"Last updated at: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}"
                 last_updated_placeholder.write(last_updated_text)
 
                 # Allow user to add new stocks
@@ -432,11 +435,12 @@ def main():
                     selected_instrument = st.sidebar.selectbox('Select Stock to Add', available_instruments)
                     purchase_date = st.sidebar.date_input('Purchase Date', min_value=datetime(2000, 1, 1), max_value=datetime.today())
                     threshold_percentage = st.sidebar.slider('Threshold Percentage', min_value=0, max_value=50, value=10)
+                    secondary_threshold_percentage = st.sidebar.slider('Secondary Threshold Percentage', min_value=0, max_value=50, value=5)
 
                     if st.sidebar.button('Add Stock'):
                         if selected_instrument:
                             purchase_date_str = purchase_date.strftime('%Y-%m-%d')  # Convert to yyyy-mm-dd format
-                            stock = Stock(selected_instrument, purchase_date_str, dashboard, threshold_percentage, requires_fetching=True)
+                            stock = Stock(selected_instrument, purchase_date_str, dashboard, threshold_percentage, secondary_threshold_percentage, requires_fetching=True)
                             st.session_state.stock_objects[ticker_code] = stock
                             stock.add_to_dashboard_json(fetch_historic_data=True)
                             st.sidebar.success(f'Stock {selected_instrument} added successfully.')
@@ -467,9 +471,17 @@ def main():
                         # value=dashboard.purchase_info[selected_instrument]['threshold_percentage']
                         value=10
                     )
+
+                    secondary_threshold_percentage = st.sidebar.slider(
+                        'Update Secondary Threshold Percentage',
+                        min_value=0,
+                        max_value=50,
+                        value=dashboard.purchase_info[selected_instrument].get('secondary_threshold_percentage', 5) # Use .get with a default for older entries
+                    )
                     
                     if st.sidebar.button('Edit Threshold Percentage'):
                         stock_object_update.edit_threshold_percentage(threshold_percentage)
+                        stock_object_update.edit_secondary_threshold_percentage(secondary_threshold_percentage)
                         st.sidebar.success(f'Threshold Percentage for {selected_instrument} updated successfully.')
 
                 elif action == 'Edit Purchase Date':
